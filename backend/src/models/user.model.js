@@ -50,6 +50,7 @@ const userSchema = new mongoose.Schema(
     },
     refreshToken: { // refresh token is stored in the database for eah user that is why only one refresh token is valid for a user at a time. If a new refresh token is generated, the old one becomes invalid. This helps in maintaining security and control over user sessions.
   type: String,
+  select: false,
 },
   },
   {

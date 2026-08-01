@@ -5,6 +5,7 @@ import ApiResponse from "../exceptions/ApiResponse.js";
 import ApiError from "../exceptions/ApiError.js";
 import asyncHandler from "../exceptions/asyncHandler.js";
 import env from "../config/env.js";
+import jwt from "jsonwebtoken";
 
 const loginUser = asyncHandler(async (req, res) => {
 
@@ -93,6 +94,111 @@ const getCurrentUser = asyncHandler(async (req, res) => {
             200,
             req.user,
             "Current user fetched successfully."
+        )
+    );
+
+});
+const logoutUser = asyncHandler(async (req, res) => {
+    await User.findByIdAndUpdate(
+    req.user._id,
+    {
+        $unset: { // remove teh field from teh docc
+            refreshToken: 1, //Is field ko remove karo
+        },
+    },
+    {
+        new: true,
+    }
+);
+
+// cookie options for logout
+const options = {
+    httpOnly: true,
+    secure: env.NODE_ENV === "production",
+    sameSite: "strict",
+};
+return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(
+        new ApiResponse(
+            200,
+            {},
+            "User logged out successfully."
+        )
+    );
+});
+const refreshAccessToken = asyncHandler(async (req, res) => {
+    const incomingRefreshToken =
+    req.cookies?.refreshToken ||
+    req.body?.refreshToken;
+
+
+if (!incomingRefreshToken) {
+    throw new ApiError(
+        401,
+        "Refresh token is required."
+    );
+}
+let decodedToken;
+
+try {
+
+    decodedToken = jwt.verify(
+        incomingRefreshToken,
+        env.JWT_REFRESH_SECRET
+    );
+
+} catch (error) {
+    console.log(error.name);
+    console.log(error.message);
+
+    throw new ApiError(
+        401,
+        "Invalid or expired refresh token."
+    );
+}
+const user = await User.findById(decodedToken._id).select(
+    "+refreshToken"
+);
+
+if (!user) {
+    throw new ApiError(
+        401,
+        "Invalid refresh token."
+    );
+}
+if (incomingRefreshToken !== user.refreshToken) {
+    throw new ApiError(
+        401,
+        "Refresh token is expired or has been used."
+    );
+}
+const accessToken = user.generateAccessToken();
+const refreshToken = user.generateRefreshToken();
+user.refreshToken = refreshToken;
+
+await user.save({
+    validateBeforeSave: false,
+});
+const options = {
+    httpOnly: true,
+    secure: env.NODE_ENV === "production",
+    sameSite: "strict",
+};
+return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                accessToken,
+                refreshToken,
+            },
+            "Access token refreshed successfully."
         )
     );
 
@@ -218,4 +324,6 @@ export {
     registerUser,
     loginUser,
     getCurrentUser,
+    logoutUser,
+    refreshAccessToken,
 };
