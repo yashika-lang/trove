@@ -7,6 +7,8 @@ import asyncHandler from "../exceptions/asyncHandler.js";
 import env from "../config/env.js";
 import jwt from "jsonwebtoken";
 
+//--------------- login user-------------
+
 const loginUser = asyncHandler(async (req, res) => {
 
 const { email, password } = req.body;
@@ -62,7 +64,7 @@ const options = { // options for setting cookies in the response
 };
 
 const loggedInUser = await User.findById(user._id).select( // this query retrieves the user document from the database by its unique identifier (_id) a
- "-password -refreshToken" //and excludes the password and refreshToken fields from the result. This is done to ensure that sensitive information like the password and refresh token are not exposed in the response sent back to the client.
+ "-password -refreshToken" //and excludes the password and refreshToken fields from the result. 
 );
 if (!loggedInUser) {
   throw new ApiError(
@@ -97,7 +99,9 @@ const getCurrentUser = asyncHandler(async (req, res) => {
         )
     );
 
-});
+}); 
+
+// ------// logout user-----------// 
 const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
     req.user._id,
@@ -128,7 +132,9 @@ return res
             "User logged out successfully."
         )
     );
-});
+}); 
+//--------------- refrresh token---------------
+
 const refreshAccessToken = asyncHandler(async (req, res) => {
     const incomingRefreshToken =
     req.cookies?.refreshToken ||
@@ -175,7 +181,7 @@ if (incomingRefreshToken !== user.refreshToken) {
         "Refresh token is expired or has been used."
     );
 }
-const accessToken = user.generateAccessToken();
+const accessToken = user.generateAccessToken(); 
 const refreshToken = user.generateRefreshToken();
 user.refreshToken = refreshToken;
 
@@ -202,8 +208,48 @@ return res
         )
     );
 
+}); 
+
+
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+const {
+    oldPassword,
+    newPassword,
+} = req.body;
+if (!oldPassword || !newPassword) {
+    throw new ApiError(
+        400,
+        "Old password and new password are required."
+    );
+}
+const user = await User.findById(req.user._id).select(
+    "+password"
+);
+
+const isPasswordValid = await user.isPasswordCorrect(
+    oldPassword
+);
+
+if (!isPasswordValid) {
+    throw new ApiError(
+        400,
+        "Old password is incorrect."
+    );
+}
+user.password = newPassword;
+
+await user.save();
+return res.status(200).json(
+    new ApiResponse(
+        200,
+        {},
+        "Password changed successfully."
+    )
+);
+
 });
 
+// --------- register user---------
 
 const registerUser = asyncHandler(async (req, res) => {
 
@@ -326,4 +372,5 @@ export {
     getCurrentUser,
     logoutUser,
     refreshAccessToken,
+    changeCurrentPassword,
 };
