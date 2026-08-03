@@ -1,5 +1,5 @@
 import { Router } from "express"; // import the Router class from the express module to create a new router instance
-import { registerUser, loginUser, getCurrentUser,  logoutUser,refreshAccessToken, changeCurrentPassword,} from "../controllers/auth.controller.js"; // import the registerUser function from the auth.controller.js file
+import { registerUser, loginUser, getCurrentUser,  logoutUser,refreshAccessToken, changeCurrentPassword,updateAccountDetails,} from "../controllers/auth.controller.js"; // import the registerUser function from the auth.controller.js file
 import {
     verifyJWT,
     authorizeRoles,
@@ -27,6 +27,11 @@ router.post(
     "/change-password",
     verifyJWT,
     changeCurrentPassword
+);
+router.put(
+    "/update-account",
+    verifyJWT,
+    updateAccountDetails
 );
 
 export default router;
