@@ -8,13 +8,15 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
 
     const authHeader = req.header("Authorization");
 
+    // Authorization header gets priority.
+    // Cookie is used only as a fallback.
     const token =
-        req.cookies?.accessToken ||
         (
             authHeader?.startsWith("Bearer ")
                 ? authHeader.substring(7)
                 : null
-        );
+        ) ||
+        req.cookies?.accessToken;
 
     if (!token) {
         throw new ApiError(
@@ -54,10 +56,18 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
 
 });
 
+
 const authorizeRoles = (...allowedRoles) => {
     return (req, res, next) => {
 
-        if (!allowedRoles.includes(req.user.role)) {
+        const userRole = req.user.role?.toLowerCase();
+
+        const normalizedAllowedRoles =
+            allowedRoles.map(
+                (role) => role.toLowerCase()
+            );
+
+        if (!normalizedAllowedRoles.includes(userRole)) {
             throw new ApiError(
                 403,
                 "You are not authorized to access this resource."
@@ -67,6 +77,7 @@ const authorizeRoles = (...allowedRoles) => {
         next();
     };
 };
+
 
 export {
     verifyJWT,

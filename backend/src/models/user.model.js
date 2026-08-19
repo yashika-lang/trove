@@ -5,6 +5,31 @@ import env from "../config/env.js";
 
 const userSchema = new mongoose.Schema(
   {
+    // ==========================================
+    // PROFILE INFORMATION
+    // ==========================================
+
+    fullName: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    department: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    lastLogin: {
+      type: Date,
+      default: null,
+    },
+
+
+    // ==========================================
+    // AUTHENTICATION
+    // ==========================================
 
     email: {
       type: String,
@@ -28,10 +53,20 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["Admin", "Sales", "Accountant"],
+      enum: [
+        "Admin",
+        "Sales",
+        "Accountant",
+      ],
       required: true,
     },
-     country: {
+
+
+    // ==========================================
+    // LOCATION
+    // ==========================================
+
+    country: {
       type: String,
       required: true,
       trim: true,
@@ -43,59 +78,192 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
+
+    // ==========================================
+    // COMPANY
+    // ==========================================
+
     company: {
-      type: mongoose.Schema.Types.ObjectId, // 
+      type: mongoose.Schema.Types.ObjectId,
       ref: "Company",
       required: true,
     },
-    refreshToken: { // refresh token is stored in the database for eah user that is why only one refresh token is valid for a user at a time. If a new refresh token is generated, the old one becomes invalid. This helps in maintaining security and control over user sessions.
-  type: String,
-  select: false,
-},
+
+
+    // ==========================================
+    // USER PREFERENCES
+    // ==========================================
+    // These are user-level preferences.
+    // They should not affect other users
+    // belonging to the same company.
+    // ==========================================
+
+    preferences: {
+
+      theme: {
+        type: String,
+        enum: [
+          "light",
+          "dark",
+          "system",
+        ],
+        default: "light",
+      },
+
+      language: {
+        type: String,
+        default: "en",
+        trim: true,
+      },
+
+      currency: {
+        type: String,
+        default: "INR",
+        uppercase: true,
+        trim: true,
+      },
+
+      dateFormat: {
+        type: String,
+        enum: [
+          "DD/MM/YYYY",
+          "MM/DD/YYYY",
+          "YYYY-MM-DD",
+        ],
+        default: "DD/MM/YYYY",
+      },
+
+      numberFormat: {
+        type: String,
+        enum: [
+          "1,000.00",
+          "1.000,00",
+          "1 000.00",
+        ],
+        default: "1,000.00",
+      },
+
+      timeFormat: {
+        type: String,
+        enum: [
+          "12",
+          "24",
+        ],
+        default: "24",
+      },
+
+    },
+
+
+    // ==========================================
+    // REFRESH TOKEN
+    // ==========================================
+
+    refreshToken: {
+      type: String,
+      select: false,
+    },
+
   },
+
   {
     timestamps: true,
   }
 );
 
-userSchema.pre("save", async function () {
 
-  if (!this.isModified("password")) {
-    return;
+// ==========================================
+// HASH PASSWORD
+// ==========================================
+
+userSchema.pre(
+  "save",
+  async function () {
+
+    if (!this.isModified("password")) {
+      return;
+    }
+
+    this.password =
+      await bcrypt.hash(
+        this.password,
+        10
+      );
+
   }
-
-  this.password = await bcrypt.hash(this.password, 10);
-
-});
+);
 
 
-userSchema.methods.isPasswordCorrect = async function (password) { // this method is used to compare a provided password with the hashed password stored in the database. It returns true if the passwords match and false otherwise. This is typically used during the login process to verify that the user has entered the correct password.
-  return await bcrypt.compare(password, this.password);
-};
-userSchema.methods.generateAccessToken = function () { // this method generates a JSON Web Token (JWT) for the user, which can be used for authentication and authorization purposes. The token contains the user's ID, email, and role, and is signed with a secret key. The token has an expiration time defined in the environment variables, after which it will no longer be valid.
-  return jwt.sign(
-    {
-      _id: this._id,
-      email: this.email,
-      role: this.role,
-    },
-    env.JWT_ACCESS_SECRET,
-    {
-      expiresIn: env.JWT_ACCESS_EXPIRY,
-    }
-  );
-};
-userSchema.methods.generateRefreshToken = function () { // this method generates a refresh token for the user, which can be used to obtain a new access token when the current one expires. The refresh token contains only the user's ID and is signed with a different secret key. It also has an expiration time defined in the environment variables. Refresh tokens are typically stored securely on the client side and sent to the server when requesting a new access token.
-  return jwt.sign(
-    {
-      _id: this._id,//this is the payload of the token, which contains the user's unique identifier (_id) from the database. This allows the server to identify the user when the refresh token is used to request a new access token.
-    }, 
-    env.JWT_REFRESH_SECRET,
-    {
-      expiresIn: env.JWT_REFRESH_EXPIRY, 
-    }
-  );
-};
-const User = mongoose.model("User", userSchema); // creates a model named "User" based on the userSchema, allowing interaction with the "users" collection in the MongoDB database
+// ==========================================
+// CHECK PASSWORD
+// ==========================================
+
+userSchema.methods.isPasswordCorrect =
+  async function (password) {
+
+    return await bcrypt.compare(
+      password,
+      this.password
+    );
+
+  };
+
+
+// ==========================================
+// GENERATE ACCESS TOKEN
+// ==========================================
+
+userSchema.methods.generateAccessToken =
+  function () {
+
+    return jwt.sign(
+
+      {
+        _id: this._id,
+        email: this.email,
+        role: this.role,
+      },
+
+      env.JWT_ACCESS_SECRET,
+
+      {
+        expiresIn:
+          env.JWT_ACCESS_EXPIRY,
+      }
+
+    );
+
+  };
+
+
+// ==========================================
+// GENERATE REFRESH TOKEN
+// ==========================================
+
+userSchema.methods.generateRefreshToken =
+  function () {
+
+    return jwt.sign(
+
+      {
+        _id: this._id,
+      },
+
+      env.JWT_REFRESH_SECRET,
+
+      {
+        expiresIn:
+          env.JWT_REFRESH_EXPIRY,
+      }
+
+    );
+
+  };
+
+
+const User = mongoose.model(
+  "User",
+  userSchema
+);
 
 export default User;

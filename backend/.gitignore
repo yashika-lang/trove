@@ -20,3 +20,8 @@ coverage/
 
 # IDE
 .vscode/
+# Local backups
+backend_backup/
+
+# Temporary patch files
+settings_patch/

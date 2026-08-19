@@ -48,6 +48,7 @@ if (!isPasswordValid) {
         "Invalid email or password."
     );
 }
+user.lastLogin = new Date();
  
 // Generate Access Token and Refresh Token
 const accessToken = user.generateAccessToken();  //User, apna Access Token bana do
@@ -325,30 +326,33 @@ return res.status(200).json(
 const registerUser = asyncHandler(async (req, res) => {
 
     const {
-        email,
-        phone,
-        password,
-        role,
-        country,
-        state,
-        companyName,
-    } = req.body;
+    fullName,
+    email,
+    phone,
+    password,
+    role,
+    department,
+    country,
+    state,
+    companyName,
+} = req.body;
 
     // Check if all required fields are provided
     if (
-        !email ||
-        !phone ||
-        !password ||
-        !role ||
-        !country ||
-        !state ||
-        !companyName
-    ) {
-        throw new ApiError(
-            400,
-            "All fields are required."
-        );
-    }
+    !fullName ||
+    !email ||
+    !phone ||
+    !password ||
+    !role ||
+    !country ||
+    !state ||
+    !companyName
+) {
+    throw new ApiError(
+        400,
+        "All required fields are required."
+    );
+}
 
     // Email Validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -407,14 +411,17 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // Create user
     const user = await User.create({
-        email,
-        phone,
-        password,
-        role,
-        country,
-        state,
-        company: company._id,
-    });
+    fullName,
+    email,
+    phone,
+    password,
+    role,
+    department:
+        department?.trim() || null,
+    country,
+    state,
+    company: company._id,
+});
 
     // Remove password from response
     const createdUser = await User.findById(user._id)
