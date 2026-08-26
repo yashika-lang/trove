@@ -1,15 +1,19 @@
 import mongoose from "mongoose";
 import InvoiceRepository from "../repositories/invoice.repository.js";
 import QuotationRepository from "../repositories/quotation.repository.js";
+import CustomerRepository from "../repositories/customer.repository.js";
 import Customer from "../models/customer.model.js";
 import Product from "../models/product.model.js";
 import Company from "../models/company.model.js";
 import ApiError from "../exceptions/ApiError.js";
+import { notificationService } from "./notification.service.js";
+import { createGSTTransactionFromInvoice } from "./gstTransaction.service.js";
 
 class InvoiceService {
   constructor() {
     this.invoiceRepository = new InvoiceRepository();
     this.quotationRepository = new QuotationRepository();
+    this.customerRepository = new CustomerRepository();
   }
 
   // ==========================================
@@ -238,10 +242,30 @@ class InvoiceService {
       createdBy: userId,
     };
 
-    return await this.invoiceRepository
+    const invoice = await this.invoiceRepository
       .createInvoice(
         finalInvoiceData
       );
+
+    await notificationService.notify({
+      companyId,
+      type: "INVOICE_CREATED",
+      title: `Invoice ${invoiceNumber} generated`,
+      message: `₹${total.toLocaleString("en-IN")} · ${customerExists.customerName}`,
+      relatedId: invoice._id,
+    });
+
+    // Every outward supply must show up in the GST module.
+    await createGSTTransactionFromInvoice(
+      invoice,
+      customerExists,
+      { company: companyId, _id: userId }
+    );
+
+    // A new unpaid invoice adds directly to the customer's outstanding balance.
+    await this.customerRepository.recalculateOutstanding(customer, companyId);
+
+    return invoice;
   }
 
   // ==========================================
@@ -563,12 +587,31 @@ class InvoiceService {
         total - invoice.amountPaid;
     }
 
-    return await this.invoiceRepository
+    const updatedInvoice = await this.invoiceRepository
       .updateInvoice(
         invoiceId,
         companyId,
         finalUpdateData
       );
+
+    // Recalculate for the new customer, and for the old one too if the
+    // invoice was reassigned (its balance just left the old customer's
+    // outstanding total and joined the new one's). invoice.customer is a
+    // populated document here (findInvoiceById populates it), so use its _id.
+    const originalCustomerId = invoice.customer?._id ?? invoice.customer;
+
+    await this.customerRepository.recalculateOutstanding(
+      finalCustomerId,
+      companyId
+    );
+    if (customer && String(customer) !== String(originalCustomerId)) {
+      await this.customerRepository.recalculateOutstanding(
+        originalCustomerId,
+        companyId
+      );
+    }
+
+    return updatedInvoice;
   }
 
   // ==========================================
@@ -605,7 +648,7 @@ class InvoiceService {
       );
     }
 
-    return await this.invoiceRepository
+    const updatedInvoice = await this.invoiceRepository
       .updateInvoice(
         invoiceId,
         companyId,
@@ -613,6 +656,15 @@ class InvoiceService {
           status,
         }
       );
+
+    // A CANCELLED (or any other) status change can move this invoice's
+    // balance in or out of the "counts toward outstanding" set.
+    await this.customerRepository.recalculateOutstanding(
+      invoice.customer?._id ?? invoice.customer,
+      companyId
+    );
+
+    return updatedInvoice;
   }
 
   // ==========================================
@@ -638,11 +690,18 @@ class InvoiceService {
       );
     }
 
-    return await this.invoiceRepository
+    const deletedInvoice = await this.invoiceRepository
       .deleteInvoice(
         invoiceId,
         companyId
       );
+
+    await this.customerRepository.recalculateOutstanding(
+      invoice.customer?._id ?? invoice.customer,
+      companyId
+    );
+
+    return deletedInvoice;
   }
 
   // ==========================================
@@ -885,6 +944,26 @@ class InvoiceService {
             invoice._id,
         }
       );
+
+    await notificationService.notify({
+      companyId,
+      type: "INVOICE_CREATED",
+      title: `Invoice ${invoiceNumber} generated from ${quotation.quotationNumber}`,
+      message: `₹${total.toLocaleString("en-IN")} · ${quotation.customer?.customerName ?? "Customer"}`,
+      relatedId: invoice._id,
+    });
+
+    await this.customerRepository.recalculateOutstanding(
+      quotation.customer?._id ?? quotation.customer,
+      companyId
+    );
+
+    // Every outward supply must show up in the GST module.
+    await createGSTTransactionFromInvoice(
+      invoice,
+      quotation.customer,
+      { company: companyId, _id: userId }
+    );
 
     // ----------------------------------------
     // RETURN CREATED INVOICE

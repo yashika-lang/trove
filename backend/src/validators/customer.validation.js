@@ -32,6 +32,11 @@ export const createCustomerSchema = z.object({
     .trim()
     .min(5, "Billing address is required."),
 
+  state: z
+    .string()
+    .trim()
+    .min(1, "State is required."),
+
   creditLimit: z
     .number()
     .min(0, "Credit limit cannot be negative.")

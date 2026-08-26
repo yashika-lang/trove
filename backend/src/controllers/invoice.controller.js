@@ -1,6 +1,9 @@
 import asyncHandler from "../exceptions/asyncHandler.js";
 import ApiResponse from "../exceptions/ApiResponse.js";
+import ApiError from "../exceptions/ApiError.js";
 import InvoiceService from "../services/invoice.service.js";
+import { buildDocumentPdf } from "../utils/documentPdf.js";
+import { sendMail } from "../utils/mailer.js";
 
 const invoiceService = new InvoiceService();
 
@@ -166,6 +169,52 @@ const getInvoiceStats = asyncHandler(async (req, res) => {
   );
 });
 
+// DOWNLOAD INVOICE PDF
+const downloadInvoicePdf = asyncHandler(async (req, res) => {
+  const invoice = await invoiceService.getInvoiceById(
+    req.params.invoiceId,
+    req.user.company
+  );
+
+  const pdfBuffer = await buildDocumentPdf({ kind: "invoice", doc: invoice });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${invoice.invoiceNumber}.pdf"`
+  );
+  return res.status(200).send(pdfBuffer);
+});
+
+// EMAIL INVOICE
+const emailInvoice = asyncHandler(async (req, res) => {
+  const invoice = await invoiceService.getInvoiceById(
+    req.params.invoiceId,
+    req.user.company
+  );
+
+  const to = req.body?.to || invoice.customer?.email;
+
+  if (!to) {
+    throw new ApiError(400, "No recipient email available.");
+  }
+
+  const pdfBuffer = await buildDocumentPdf({ kind: "invoice", doc: invoice });
+
+  await sendMail({
+    to,
+    subject: `Invoice ${invoice.invoiceNumber} from your supplier`,
+    html: `<p>Hi ${invoice.customer?.customerName ?? ""},</p><p>Please find attached invoice ${invoice.invoiceNumber} for ₹${invoice.total.toLocaleString("en-IN")}.</p>`,
+    attachments: [
+      { filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer },
+    ],
+  });
+
+  return res.status(200).json(
+    new ApiResponse(200, { to }, "Invoice emailed successfully.")
+  );
+});
+
 export {
   createInvoice,
   createInvoiceFromQuotation,
@@ -175,4 +224,6 @@ export {
   updateInvoiceStatus,
   deleteInvoice,
   getInvoiceStats,
+  downloadInvoicePdf,
+  emailInvoice,
 };

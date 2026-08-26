@@ -3,6 +3,7 @@ import ApiError from "../exceptions/ApiError.js";
 
 import {
   getSettings,
+  getCompany,
   createSettings,
   updateCompany,
   updateSettings,
@@ -68,13 +69,15 @@ const getAllSettings = async (user) => {
     settings = settings.toObject();
   }
 
-  const [banks, templates] = await Promise.all([
+  const [company, banks, templates] = await Promise.all([
+    getCompany(companyId),
     getBanks(companyId),
     getTemplates(companyId),
   ]);
 
   return {
     settings,
+    company,
     banks,
     templates,
   };
@@ -295,7 +298,7 @@ const getBanksForUser = async (user) => {
 const createBankForUser = async (user, data) => {
   const companyId = validateCompanyId(user);
 
-  const required = ["bankName", "accountNumber", "ifscCode"];
+  const required = ["bankName", "accountNumber", "accountHolderName", "ifscCode"];
   for (const field of required) {
     if (!data[field]?.toString().trim()) {
       throw new ApiError(400, `${field} is required.`);
@@ -319,8 +322,10 @@ const createBankForUser = async (user, data) => {
     accountHolderName: String(data.accountHolderName || "").trim(),
     accountType: data.accountType || "SAVINGS",
     ifscCode,
+    branchName: data.branchName?.trim() || null,
     isDefault: Boolean(data.isDefault),
     currentBalance: Number(data.currentBalance || 0),
+    createdBy: user._id,
   });
 };
 

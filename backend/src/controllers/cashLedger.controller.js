@@ -209,14 +209,14 @@ const exportCashLedgerController = asyncHandler(
 
     const csvData = result.entries.map(
       (entry) => ({
-        Date: entry.date
-          ? new Date(entry.date)
+        Date: entry.transactionDate
+          ? new Date(entry.transactionDate)
               .toISOString()
               .split("T")[0]
           : "",
 
         Particular:
-          entry.particular || "",
+          entry.description || "",
 
         Reference:
           entry.referenceNumber || "",

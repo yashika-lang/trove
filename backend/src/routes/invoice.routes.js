@@ -9,6 +9,8 @@ import {
   updateInvoiceStatus,
   deleteInvoice,
   getInvoiceStats,
+  downloadInvoicePdf,
+  emailInvoice,
 } from "../controllers/invoice.controller.js";
 
 import {
@@ -51,6 +53,20 @@ router.get(
   verifyJWT,
   authorizeRoles("Admin", "Sales", "Accountant"),
   getInvoiceById
+);
+
+router.get(
+  "/:invoiceId/pdf",
+  verifyJWT,
+  authorizeRoles("Admin", "Sales", "Accountant"),
+  downloadInvoicePdf
+);
+
+router.post(
+  "/:invoiceId/email",
+  verifyJWT,
+  authorizeRoles("Admin", "Sales", "Accountant"),
+  emailInvoice
 );
 
 // ==========================================

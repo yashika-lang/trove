@@ -3,7 +3,8 @@ import express from "express";
 import {
   getCustomerLedgerController,
   getCompanyLedgerController,
-   exportCustomerLedgerController,
+  exportCompanyLedgerController,
+  exportCustomerLedgerController,
 } from "../controllers/ledger.controller.js";
 
 import {
@@ -24,6 +25,18 @@ router.get(
   verifyJWT,
   authorizeRoles("admin", "accountant"),
   getCompanyLedgerController
+);
+
+// ==========================================
+// EXPORT COMPANY LEDGER
+// Admin + Accountant
+// ==========================================
+
+router.get(
+  "/export",
+  verifyJWT,
+  authorizeRoles("admin", "accountant"),
+  exportCompanyLedgerController
 );
 
 // ==========================================

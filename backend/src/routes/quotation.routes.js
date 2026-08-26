@@ -8,6 +8,8 @@ import {
   deleteQuotation,
   updateQuotationStatus,
   getQuotationStats,
+  downloadQuotationPdf,
+  emailQuotation,
 } from "../controllers/quotation.controller.js";
 
 import {
@@ -54,6 +56,20 @@ router.get(
 router.get(
   "/:quotationId",
   getQuotationById
+);
+
+
+// Download Quotation PDF
+router.get(
+  "/:quotationId/pdf",
+  downloadQuotationPdf
+);
+
+
+// Email Quotation
+router.post(
+  "/:quotationId/email",
+  emailQuotation
 );
 
 

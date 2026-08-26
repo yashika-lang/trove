@@ -8,6 +8,11 @@ import {
   getAccountantRecentActivity,
 } from "../controllers/accountantDashboard.controller.js";
 
+import {
+  verifyJWT,
+  authorizeRoles,
+} from "../middleware/auth.middleware.js";
+
 const router =
   express.Router();
 
@@ -15,6 +20,14 @@ const router =
 // ==========================================
 // ACCOUNTANT DASHBOARD
 // ==========================================
+
+router.use(
+  verifyJWT,
+  authorizeRoles(
+    "ADMIN",
+    "ACCOUNTANT"
+  )
+);
 
 router.get(
   "/summary",

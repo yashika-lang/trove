@@ -18,13 +18,21 @@ import {
 
   getTopProductsRepository,
 
-  getLedgerSourceRepository,
-
   getBankSummaryRepository,
 
   getQuotationConversionRepository,
 
 } from "../repositories/report.repository.js";
+
+// The Ledger Report is a module-level summary (Customer/Cash/GST Ledger:
+// Opening/Debit/Credit/Closing) — it reuses each ledger's own already-
+// correct, already-fixed service rather than re-deriving invoice/payment
+// totals a fourth time (see report.repository.js's removed
+// getLedgerSourceRepository, which duplicated ledger.repository.js and was
+// missing the PAID/PARTIALLY_PAID payment-status filter that module has).
+import { getCompanyLedger } from "./ledger.service.js";
+import { getCashLedgerStats } from "./cashLedger.service.js";
+import { getGSTLedger } from "./gstLedger.service.js";
 
 
 // ======================================================
@@ -126,13 +134,15 @@ const getGSTReport = async (
 // ======================================================
 
 const getOutstandingReport = async (
-  user
+  user,
+  filters = {}
 ) => {
 
   validateCompany(user);
 
   return await getOutstandingReportRepository(
-    user.company
+    user.company,
+    filters
   );
 
 };
@@ -199,6 +209,13 @@ const getTopProducts = async (
 // LEDGER REPORT
 // ======================================================
 
+// Module-level summary (Module | Opening | Debit | Credit | Closing) —
+// matches the reference UI exactly. Each module row reads its numbers from
+// that module's own already-correct service, so there is exactly one place
+// that computes "customer ledger totals," one place for "cash ledger
+// totals," and one for "GST ledger totals" — this function only composes
+// them, it never recalculates any of them itself. Supplier Ledger is
+// intentionally omitted — no such module exists in the backend.
 const getLedgerReport = async (
   user,
   filters = {}
@@ -207,373 +224,154 @@ const getLedgerReport = async (
   validateCompany(user);
 
 
-  const {
-    invoices,
-    payments,
-  } =
-    await getLedgerSourceRepository(
-      user.company,
-      filters
-    );
+  const [
+    customerLedger,
+    cashLedgerStats,
+    gstLedger,
+  ] = await Promise.all([
+
+    getCompanyLedger(
+      user,
+      {
+        search: filters.search,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        limit: 1,
+      }
+    ),
+
+    getCashLedgerStats(user),
+
+    getGSTLedger(
+      user,
+      {
+        search: filters.search,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        limit: 1,
+      }
+    ),
+
+  ]);
 
 
-  const entries = [];
+  // Cash Ledger's own convention: CREDIT increases balance, DEBIT
+  // decreases it (see cashLedger.service.js) — reverse the running total
+  // to recover its opening balance without a second query.
+  const cashOpening =
+    Number(cashLedgerStats.closingBalance || 0) -
+    Number(cashLedgerStats.totalCredit || 0) +
+    Number(cashLedgerStats.totalDebit || 0);
 
 
-  // ----------------------------------------
-  // INVOICES = DEBIT
-  // ----------------------------------------
+  const modules = [
 
-  for (
-    const invoice of invoices
-  ) {
+    {
 
-    entries.push({
+      module: "Customer Ledger",
 
-      date:
-        invoice.invoiceDate,
-
-      particular:
-        `Sales Invoice ${
-          invoice.invoiceNumber
-        }`,
-
-      account:
-        invoice.customer
-          ?.customerName ||
-        "Customer",
-
-      reference:
-        invoice.invoiceNumber,
+      opening:
+        Number(
+          customerLedger.openingBalance || 0
+        ),
 
       debit:
         Number(
-          invoice.total || 0
+          customerLedger.totalDebit || 0
         ),
-
-      credit: 0,
-
-      type: "DEBIT",
-
-      source: "INVOICE",
-
-      sourceId:
-        invoice._id,
-
-    });
-
-  }
-
-
-  // ----------------------------------------
-  // PAYMENTS = CREDIT
-  // ----------------------------------------
-
-  for (
-    const payment of payments
-  ) {
-
-    entries.push({
-
-      date:
-        payment.paymentDate,
-
-      particular:
-        `Receipt ${
-          payment.paymentMethod ||
-          ""
-        }`.trim(),
-
-      account:
-        payment.customer
-          ?.customerName ||
-        "Customer",
-
-      reference:
-        payment.referenceNumber ||
-        payment.paymentNumber ||
-        null,
-
-      debit: 0,
 
       credit:
         Number(
-          payment.amount || 0
+          customerLedger.totalCredit || 0
         ),
 
-      type: "CREDIT",
+      closing:
+        Number(
+          customerLedger.closingBalance || 0
+        ),
 
-      source: "PAYMENT",
+    },
 
-      sourceId:
-        payment._id,
+    {
 
-    });
+      module: "Cash Ledger",
 
-  }
+      opening: cashOpening,
 
+      debit:
+        Number(
+          cashLedgerStats.totalDebit || 0
+        ),
 
-  // ----------------------------------------
-  // SORT
-  // ----------------------------------------
+      credit:
+        Number(
+          cashLedgerStats.totalCredit || 0
+        ),
 
-  entries.sort(
-    (a, b) => {
+      closing:
+        Number(
+          cashLedgerStats.closingBalance || 0
+        ),
 
-      const difference =
-        new Date(a.date).getTime() -
-        new Date(b.date).getTime();
+    },
 
+    {
 
-      if (difference !== 0) {
-        return difference;
-      }
+      module: "GST Ledger",
 
+      opening:
+        Number(
+          gstLedger.openingBalance || 0
+        ),
 
-      return String(
-        a.sourceId
-      ).localeCompare(
-        String(b.sourceId)
-      );
+      debit:
+        Number(
+          gstLedger.summary?.totalDebit || 0
+        ),
 
-    }
-  );
+      credit:
+        Number(
+          gstLedger.summary?.totalCredit || 0
+        ),
 
+      closing:
+        Number(
+          gstLedger.summary?.closingBalance || 0
+        ),
 
-  // ----------------------------------------
-  // SUMMARY BEFORE FILTER
-  // ----------------------------------------
+    },
+
+  ];
+
 
   const totalDebit =
-    entries.reduce(
-      (sum, entry) =>
-        sum +
-        Number(
-          entry.debit || 0
-        ),
+    modules.reduce(
+      (sum, item) =>
+        sum + item.debit,
       0
     );
 
 
   const totalCredit =
-    entries.reduce(
-      (sum, entry) =>
-        sum +
-        Number(
-          entry.credit || 0
-        ),
+    modules.reduce(
+      (sum, item) =>
+        sum + item.credit,
       0
     );
 
 
-  const closingBalance =
-    totalDebit -
-    totalCredit;
-
-
-  // ----------------------------------------
-  // RUNNING BALANCE
-  // ----------------------------------------
-
-  let balance = 0;
-
-
-  const entriesWithBalance =
-    entries.map(
-      (entry) => {
-
-        balance +=
-          Number(
-            entry.debit || 0
-          );
-
-        balance -=
-          Number(
-            entry.credit || 0
-          );
-
-
-        return {
-          ...entry,
-          balance,
-        };
-
-      }
-    );
-
-
-  // ----------------------------------------
-  // SEARCH
-  // ----------------------------------------
-
-  let filtered =
-    [...entriesWithBalance];
-
-
-  if (filters.search) {
-
-    const search =
-      String(
-        filters.search
-      )
-        .trim()
-        .toLowerCase();
-
-
-    filtered =
-      filtered.filter(
-        (entry) => (
-
-          String(
-            entry.particular || ""
-          )
-            .toLowerCase()
-            .includes(search)
-
-          ||
-
-          String(
-            entry.account || ""
-          )
-            .toLowerCase()
-            .includes(search)
-
-          ||
-
-          String(
-            entry.reference || ""
-          )
-            .toLowerCase()
-            .includes(search)
-
-        )
-      );
-
-  }
-
-
-  // ----------------------------------------
-  // TYPE FILTER
-  // ----------------------------------------
-
-  if (filters.type) {
-
-    const type =
-      String(
-        filters.type
-      ).toUpperCase();
-
-
-    if (
-      ![
-        "DEBIT",
-        "CREDIT",
-      ].includes(type)
-    ) {
-
-      throw new ApiError(
-        400,
-        "Invalid ledger type. Use DEBIT or CREDIT."
-      );
-
-    }
-
-
-    filtered =
-      filtered.filter(
-        (entry) =>
-          entry.type === type
-      );
-
-  }
-
-
-  // ----------------------------------------
-  // PAGINATION
-  // ----------------------------------------
-
-  const page =
-    Math.max(
-      Number(
-        filters.page
-      ) || 1,
-      1
-    );
-
-
-  const limit =
-    Math.min(
-      Math.max(
-        Number(
-          filters.limit
-        ) || 10,
-        1
-      ),
-      100
-    );
-
-
-  const total =
-    filtered.length;
-
-
-  const totalPages =
-    Math.ceil(
-      total / limit
-    );
-
-
-  const skip =
-    (page - 1) *
-    limit;
-
-
   return {
 
-    summary: {
+    modules,
 
-      openingBalance: 0,
+    summary: {
 
       totalDebit,
 
       totalCredit,
 
-      closingBalance,
-
-      entriesCount:
-        entries.length,
-
-    },
-
-
-    openingBalance: 0,
-
-    totalDebit,
-
-    totalCredit,
-
-    closingBalance,
-
-    entriesCount:
-      entries.length,
-
-
-    entries:
-      filtered.slice(
-        skip,
-        skip + limit
-      ),
-
-
-    pagination: {
-
-      page,
-
-      limit,
-
-      total,
-
-      totalPages,
+      moduleCount:
+        modules.length,
 
     },
 

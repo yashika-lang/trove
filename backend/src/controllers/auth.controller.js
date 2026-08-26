@@ -406,6 +406,8 @@ const registerUser = asyncHandler(async (req, res) => {
     if (!company) {
         company = await Company.create({
             companyName,
+            state,
+            country,
         });
     }
 

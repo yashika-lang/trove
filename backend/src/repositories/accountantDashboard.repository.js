@@ -35,7 +35,12 @@ const getAccountantDashboardSummary =
       bankBalance,
     ] = await Promise.all([
 
-      // RECEIPTS
+      // RECEIPTS — real money collected from customers this month.
+      // Payment has no `type` field (INCOMING/OUTGOING never existed on
+      // the schema, so this aggregation previously matched zero documents
+      // and always returned ₹0) — status is the correct discriminator,
+      // and only PAID/PARTIALLY_PAID are real money in, matching the same
+      // convention used by Reports/Ledger/Payments elsewhere.
       Payment.aggregate([
         {
           $match: {
@@ -45,7 +50,9 @@ const getAccountantDashboardSummary =
               $gte: startOfMonth,
             },
 
-            type: "INCOMING",
+            status: {
+              $in: ["PAID", "PARTIALLY_PAID"],
+            },
           },
         },
 
@@ -66,17 +73,23 @@ const getAccountantDashboardSummary =
       ]),
 
 
-      // PAYMENTS
-      Payment.aggregate([
+      // PAYMENTS — real money that left the business this month. There is
+      // no vendor/supplier-payment module in this app (Supplier Ledger is
+      // an explicit "Future" placeholder elsewhere), so the only concrete
+      // "money out" source of truth is bank DEBIT transactions. Cash
+      // ledger debits are deliberately excluded here to avoid double-
+      // counting: a cash withdrawal from a bank is a bank DEBIT and a
+      // cash ledger CREDIT for the same rupee, not two separate outflows.
+      BankTransaction.aggregate([
         {
           $match: {
             company: companyId,
 
-            paymentDate: {
+            transactionDate: {
               $gte: startOfMonth,
             },
 
-            type: "OUTGOING",
+            type: "DEBIT",
           },
         },
 
@@ -129,7 +142,7 @@ const getAccountantDashboardSummary =
 
                   {
                     $ifNull: [
-                      "$paidAmount",
+                      "$amountPaid",
                       0,
                     ],
                   },
@@ -341,6 +354,13 @@ const getPaymentDistribution =
       {
         $match: {
           company: companyId,
+
+          // Only real money collected — a FAILED/PENDING/REFUNDED payment
+          // must not inflate the mode breakdown, matching the same
+          // convention used everywhere else in this app.
+          status: {
+            $in: ["PAID", "PARTIALLY_PAID"],
+          },
         },
       },
 
@@ -481,7 +501,7 @@ const getTopProducts =
             item._id,
 
           productName:
-            product?.name ||
+            product?.productName ||
             "Unknown Product",
 
           revenue:

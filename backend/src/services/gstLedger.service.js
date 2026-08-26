@@ -152,10 +152,14 @@ const getPagination = (filters = {}) => {
     );
   }
 
-  if (limit > 100) {
+  // 100000 matches the "export all filtered entries" convention used by
+  // exportGSTLedgerController (and the equivalent cash/customer ledger
+  // export endpoints) — a lower cap here would make CSV export silently
+  // fail/truncate instead of returning every filtered row as promised.
+  if (limit > 100000) {
     throw new ApiError(
       400,
-      "Limit cannot be greater than 100."
+      "Limit cannot be greater than 100000."
     );
   }
 

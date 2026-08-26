@@ -9,6 +9,9 @@ import {
   getGSTReturnStats,
 } from "../repositories/gstReturn.repository.js";
 
+import { createGSTAuditLog } from "../repositories/gstAuditLog.repository.js";
+import { notificationService } from "./notification.service.js";
+
 class GSTReturnService {
   // ==========================================
   // CREATE RETURN
@@ -65,15 +68,31 @@ class GSTReturnService {
       );
     }
 
-    return await createGSTReturn({
-      returnType,
-      period: period.trim(),
-      dueDate,
-      liability: amount,
-      status: "DRAFT",
-      company: user.company,
-      preparedBy: user._id,
-    });
+    const created =
+      await createGSTReturn({
+        returnType,
+        period: period.trim(),
+        dueDate,
+        liability: amount,
+        status: "DRAFT",
+        company: user.company,
+        preparedBy: user._id,
+      });
+
+    try {
+      await createGSTAuditLog({
+        action: "RETURN_PREPARED",
+        description: `${returnType} for ${period.trim()} prepared (liability ₹${amount.toLocaleString("en-IN")})`,
+        entityType: "GSTReturn",
+        entityId: created._id,
+        performedBy: user._id,
+        company: user.company,
+      });
+    } catch {
+      // Never let audit logging block return creation.
+    }
+
+    return created;
   }
 
   // ==========================================
@@ -241,11 +260,39 @@ class GSTReturnService {
         data.filingReference.trim();
     }
 
-    return await updateGSTReturn(
-      returnId,
-      user.company,
-      updateData
-    );
+    const updated =
+      await updateGSTReturn(
+        returnId,
+        user.company,
+        updateData
+      );
+
+    if (
+      updateData.status === "FILED"
+    ) {
+      try {
+        await createGSTAuditLog({
+          action: "RETURN_FILED",
+          description: `${existing.returnType} for ${existing.period} filed${updateData.filingReference ? ` · ARN ${updateData.filingReference}` : ""}`,
+          entityType: "GSTReturn",
+          entityId: existing._id,
+          performedBy: user._id,
+          company: user.company,
+        });
+      } catch {
+        // Never let audit logging block the filing.
+      }
+
+      await notificationService.notify({
+        companyId: user.company,
+        type: "GST_RETURN_FILED",
+        title: `${existing.returnType} filed for ${existing.period}`,
+        message: `Liability ₹${existing.liability.toLocaleString("en-IN")}${updateData.filingReference ? ` · ARN ${updateData.filingReference}` : ""}`,
+        relatedId: existing._id,
+      });
+    }
+
+    return updated;
   }
 
   // ==========================================

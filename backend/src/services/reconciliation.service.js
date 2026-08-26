@@ -1,5 +1,6 @@
 import ApiError from "../exceptions/ApiError.js";
 import mongoose from "mongoose";
+import { notificationService } from "./notification.service.js";
 
 import {
   getReconciliationTransactions,
@@ -595,6 +596,19 @@ if (existingMatch) {
 
 
   // ----------------------------------------
+  // NOTIFY
+  // ----------------------------------------
+
+  await notificationService.notify({
+    companyId: user.company,
+    type: "TRANSACTION_RECONCILED",
+    title: "Bank transaction reconciled",
+    message: `Transaction ${updatedTransaction.transactionNumber} auto-matched to payment ${payment.paymentNumber}.`,
+    relatedId: updatedTransaction._id,
+  });
+
+
+  // ----------------------------------------
   // RETURN
   // ----------------------------------------
 
@@ -831,6 +845,19 @@ const reconcileTransactionService = async (
       "Bank transaction could not be updated."
     );
   }
+
+
+  // ----------------------------------------
+  // NOTIFY
+  // ----------------------------------------
+
+  await notificationService.notify({
+    companyId: user.company,
+    type: "TRANSACTION_RECONCILED",
+    title: "Bank transaction reconciled",
+    message: `Transaction ${updatedTransaction.transactionNumber} manually matched to payment ${payment.paymentNumber}.`,
+    relatedId: updatedTransaction._id,
+  });
 
 
   // ----------------------------------------

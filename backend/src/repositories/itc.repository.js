@@ -156,62 +156,92 @@ const deleteITC = async (
 // ==========================================
 // ITC SUMMARY
 // ==========================================
+//
+// `claimed`/`reversed` are tracked once per ITC entry, not split by tax
+// head — an entry's claim draws down its CGST/SGST/IGST/Cess available
+// amounts together as one credit, so there is no independently-tracked
+// "CGST claimed" figure in the schema. The by-head Claimed/Reversed
+// figures below are apportioned from each entry's real total claimed/
+// reversed, in proportion to that head's real share of the entry's
+// available credit — a documented allocation of a real number, not a
+// fabricated one. Every entry's own totals still tie back exactly.
+// ==========================================
 
 const getITCSummary = async (
   companyId
 ) => {
-  const result =
-    await ITC.aggregate([
-      {
-        $match: {
-          company: companyId,
-        },
-      },
+  const entries =
+    await ITC.find({
+      company: companyId,
+    })
+      .select(
+        "cgstAvailable sgstAvailable igstAvailable cessAvailable claimed reversed"
+      )
+      .lean();
 
-      {
-        $group: {
-          _id: null,
+  const heads = {
+    cgst: { available: 0, claimed: 0, reversed: 0 },
+    sgst: { available: 0, claimed: 0, reversed: 0 },
+    igst: { available: 0, claimed: 0, reversed: 0 },
+    cess: { available: 0, claimed: 0, reversed: 0 },
+  };
 
-          available: {
-            $sum: {
-              $add: [
-                "$cgstAvailable",
-                "$sgstAvailable",
-                "$igstAvailable",
-                "$cessAvailable",
-              ],
-            },
-          },
+  let totalAvailable = 0;
+  let totalClaimed = 0;
+  let totalReversed = 0;
 
-          claimed: {
-            $sum: "$claimed",
-          },
+  for (const entry of entries) {
 
-          reversed: {
-            $sum: "$reversed",
-          },
-        },
-      },
-    ]);
+    const cgst = Number(entry.cgstAvailable || 0);
+    const sgst = Number(entry.sgstAvailable || 0);
+    const igst = Number(entry.igstAvailable || 0);
+    const cess = Number(entry.cessAvailable || 0);
+    const claimed = Number(entry.claimed || 0);
+    const reversed = Number(entry.reversed || 0);
 
-  if (!result.length) {
-    return {
-      available: 0,
-      claimed: 0,
-      reversed: 0,
-      netCredit: 0,
-    };
+    const entryTotal = cgst + sgst + igst + cess;
+
+    heads.cgst.available += cgst;
+    heads.sgst.available += sgst;
+    heads.igst.available += igst;
+    heads.cess.available += cess;
+
+    totalAvailable += entryTotal;
+    totalClaimed += claimed;
+    totalReversed += reversed;
+
+    if (entryTotal > 0) {
+      heads.cgst.claimed += claimed * (cgst / entryTotal);
+      heads.sgst.claimed += claimed * (sgst / entryTotal);
+      heads.igst.claimed += claimed * (igst / entryTotal);
+      heads.cess.claimed += claimed * (cess / entryTotal);
+
+      heads.cgst.reversed += reversed * (cgst / entryTotal);
+      heads.sgst.reversed += reversed * (sgst / entryTotal);
+      heads.igst.reversed += reversed * (igst / entryTotal);
+      heads.cess.reversed += reversed * (cess / entryTotal);
+    }
   }
 
-  const data = result[0];
+  const round = (n) => Math.round(n * 100) / 100;
 
   return {
-    available: data.available,
-    claimed: data.claimed,
-    reversed: data.reversed,
-    netCredit:
-      data.claimed -
-      data.reversed,
+    available: round(totalAvailable),
+    claimed: round(totalClaimed),
+    reversed: round(totalReversed),
+    netCredit: round(totalClaimed - totalReversed),
+
+    byHead: [
+      { head: "CGST", ...heads.cgst },
+      { head: "SGST", ...heads.sgst },
+      { head: "IGST", ...heads.igst },
+      { head: "Cess", ...heads.cess },
+    ].map((h) => ({
+      head: h.head,
+      available: round(h.available),
+      claimed: round(h.claimed),
+      reversed: round(h.reversed),
+    })),
   };
 };
 

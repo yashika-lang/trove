@@ -1,4 +1,5 @@
 import Customer from "../models/customer.model.js";
+import Invoice from "../models/invoice.model.js";
 import mongoose from "mongoose";
 
 class CustomerRepository {
@@ -121,6 +122,41 @@ async getCustomerStats(companyId) {
       customersWithDues: 0,
     }
   );
+}
+
+// Customer.outstanding is a denormalized cache of "sum of balanceDue across
+// this customer's invoices" — it was previously written once at creation
+// (always 0) and never kept in sync. This recomputes and persists it from
+// Invoice, the actual source of truth, matching the same PAID/CANCELLED
+// exclusion the dashboard's own outstanding stat already uses (a PAID
+// invoice's balanceDue is always 0 anyway, so excluding it is a no-op;
+// CANCELLED invoices are excluded because a cancelled invoice's balance
+// shouldn't count against the customer).
+async recalculateOutstanding(customerId, companyId) {
+  const result = await Invoice.aggregate([
+    {
+      $match: {
+        customer: new mongoose.Types.ObjectId(customerId),
+        company: new mongoose.Types.ObjectId(companyId),
+        status: { $nin: ["CANCELLED", "PAID"] },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$balanceDue" },
+      },
+    },
+  ]);
+
+  const outstanding = result[0]?.total || 0;
+
+  await Customer.findOneAndUpdate(
+    { _id: customerId, company: companyId },
+    { outstanding }
+  );
+
+  return outstanding;
 }
 }
 

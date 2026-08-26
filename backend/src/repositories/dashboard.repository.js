@@ -324,7 +324,7 @@ const getPaymentDistribution = async (
 
       {
         $group: {
-          _id: "$mode",
+          _id: "$paymentMode",
 
           amount: {
             $sum: "$amount",

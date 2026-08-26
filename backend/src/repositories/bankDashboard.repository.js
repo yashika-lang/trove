@@ -368,7 +368,7 @@ const getBankDashboardData = async (
         "bankName accountNumber"
       )
       .select(
-        "bankAccount transactionDate narration amount type referenceNumber reconciliationStatus createdAt transactionNumber"
+        "bankAccount transactionDate narration amount type referenceNumber reconciliationStatus createdAt transactionNumber balanceAfterTransaction"
       )
       .sort({
         transactionDate: -1,
@@ -493,15 +493,13 @@ const getBankDashboardData = async (
   // ========================================
   // RUNNING BALANCE
   // ========================================
-
-  const bankBalanceMap =
-    new Map(
-      banks.map((bank) => [
-        String(bank._id),
-        bank.currentBalance || 0,
-      ])
-    );
-
+  // Read the balance stored on each transaction at write time
+  // (balanceAfterTransaction) instead of walking backward from the bank's
+  // *current* balance — the walk-back was only correct for an unfiltered,
+  // first-page, fully chronological view; it silently broke under any
+  // filter, search, or pagination. Legacy rows created before this field
+  // existed fall back to null, shown as no balance rather than a fabricated
+  // number.
 
   const transactionEntries = [];
 
@@ -513,38 +511,6 @@ const getBankDashboardData = async (
 
     if (!transaction.bankAccount) {
       continue;
-    }
-
-
-    const bankId =
-      String(
-        transaction.bankAccount._id
-      );
-
-
-    const currentBalance =
-      bankBalanceMap.get(
-        bankId
-      ) || 0;
-
-
-    let previousBalance;
-
-
-    if (
-      transaction.type ===
-      "CREDIT"
-    ) {
-
-      previousBalance =
-        currentBalance -
-        transaction.amount;
-
-    } else {
-
-      previousBalance =
-        currentBalance +
-        transaction.amount;
     }
 
 
@@ -583,7 +549,8 @@ const getBankDashboardData = async (
           : 0,
 
       balance:
-        currentBalance,
+        transaction.balanceAfterTransaction ??
+        null,
 
       reconciliationStatus:
         transaction.reconciliationStatus,
@@ -592,13 +559,6 @@ const getBankDashboardData = async (
         transaction.referenceNumber ||
         null,
     });
-
-
-    // Move backwards
-    bankBalanceMap.set(
-      bankId,
-      previousBalance
-    );
   }
 
 

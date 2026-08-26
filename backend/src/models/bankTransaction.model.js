@@ -5,7 +5,6 @@ const bankTransactionSchema = new mongoose.Schema(
     transactionNumber: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
     },
 
@@ -56,6 +55,18 @@ const bankTransactionSchema = new mongoose.Schema(
       default: "UNRECONCILED",
     },
 
+    // The bank's currentBalance immediately after this transaction was
+    // applied — stored once, at write time, so the dashboard can display an
+    // accurate running balance per row regardless of filters/pagination
+    // (previously recomputed by walking backward from the bank's *current*
+    // balance across whatever transactions happened to be on the current
+    // filtered/paginated page, which was only correct for an unfiltered,
+    // first-page, chronological view).
+    balanceAfterTransaction: {
+      type: Number,
+      default: null,
+    },
+
     company: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Company",
@@ -71,6 +82,14 @@ const bankTransactionSchema = new mongoose.Schema(
   {
     timestamps: true,
   }
+);
+
+// Scoped per company — transactionNumber (BT-0001...) is only meant to be
+// unique within a company, not globally (same class of bug fixed earlier
+// for Payment.paymentNumber).
+bankTransactionSchema.index(
+  { company: 1, transactionNumber: 1 },
+  { unique: true }
 );
 
 const BankTransaction = mongoose.model(

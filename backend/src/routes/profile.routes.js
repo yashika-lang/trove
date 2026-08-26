@@ -7,6 +7,8 @@ import {
 
 import {
   getUserProfile,
+  updateUserProfile,
+  updateUserPreferences,
 } from "../controllers/profile.controller.js";
 
 const router = Router();
@@ -27,6 +29,44 @@ router.get(
   ),
 
   getUserProfile
+);
+
+
+// ======================================================
+// UPDATE MY PROFILE
+// ======================================================
+
+router.patch(
+  "/",
+
+  verifyJWT,
+
+  authorizeRoles(
+    "Admin",
+    "Sales",
+    "Accountant"
+  ),
+
+  updateUserProfile
+);
+
+
+// ======================================================
+// UPDATE MY PREFERENCES
+// ======================================================
+
+router.patch(
+  "/preferences",
+
+  verifyJWT,
+
+  authorizeRoles(
+    "Admin",
+    "Sales",
+    "Accountant"
+  ),
+
+  updateUserPreferences
 );
 
 export default router;

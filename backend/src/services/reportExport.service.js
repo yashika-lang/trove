@@ -185,6 +185,16 @@ const extractRows = (
 
     "rows",
 
+    // Module-level / composite report shapes (Ledger Report, Bank
+    // Summary, Quotation Conversion) — without these, extractRows falls
+    // through to wrapping the whole response object as a single export
+    // row instead of one row per module/bank/status.
+    "modules",
+
+    "banks",
+
+    "statuses",
+
   ];
 
 
@@ -240,6 +250,23 @@ const flattenObject = (
 
     result[prefix] =
       object.toISOString();
+
+    return result;
+  }
+
+
+  // Mongoose/BSON ObjectId (e.g. a raw `_id` or populated ref field from a
+  // .lean() document) is technically an object with an internal Buffer —
+  // without this check it gets recursed into and shredded into a dozen
+  // garbage "prefix Buffer 0..11" columns instead of one clean id string.
+  // Every real ObjectId implementation exposes toHexString().
+  if (
+    typeof object.toHexString ===
+    "function"
+  ) {
+
+    result[prefix] =
+      object.toHexString();
 
     return result;
   }
@@ -507,6 +534,20 @@ const exportReport = async (
 
 
   // ========================================
+  // FILE BASE NAME
+  // ========================================
+  // e.g. "daily-sales-2026-08-22"
+
+  const todayISO =
+    new Date()
+      .toISOString()
+      .slice(0, 10);
+
+  const baseName =
+    `${reportName}-${todayISO}`;
+
+
+  // ========================================
   // CSV
   // ========================================
 
@@ -533,7 +574,7 @@ const exportReport = async (
         "text/csv; charset=utf-8",
 
       filename:
-        `${reportName}.csv`,
+        `${baseName}.csv`,
 
     };
 
@@ -565,7 +606,7 @@ const exportReport = async (
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 
       filename:
-        `${reportName}.xlsx`,
+        `${baseName}.xlsx`,
 
     };
 
@@ -592,7 +633,7 @@ const exportReport = async (
       "application/pdf",
 
     filename:
-      `${reportName}.pdf`,
+      `${baseName}.pdf`,
 
   };
 

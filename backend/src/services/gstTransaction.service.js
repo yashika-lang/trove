@@ -7,6 +7,9 @@ import Company from "../models/company.model.js";
 
 import calculateGST from "../utils/gstCalculator.js";
 
+const gstTransactionRepository =
+  new GSTTransactionRepository();
+
 
 class GSTTransactionService {
 
@@ -1206,6 +1209,110 @@ export const deleteGSTTransaction =
       transactionId,
       user
     );
+  };
+
+
+// ==========================================
+// CREATE FROM INVOICE (system-triggered)
+// ==========================================
+//
+// Every outward GST transaction should reflect a real invoice — without
+// this hook, the whole GST module (Dashboard, Transactions, ITC,
+// Reconciliation, Returns) only ever showed manually-entered rows,
+// completely disconnected from actual invoiced sales. Called right after
+// invoice creation with the invoice's own already-computed tax fields, so
+// there is no second GST calculation to drift out of sync with the
+// invoice itself.
+//
+// Never throws — a GST-sync failure must not fail invoice creation, the
+// same "never blocks the primary operation" contract notificationService
+// already follows.
+// ==========================================
+
+export const createGSTTransactionFromInvoice =
+  async (
+    invoice,
+    customer,
+    user
+  ) => {
+
+    try {
+
+      const totalTax =
+        Number(invoice.cgst || 0) +
+        Number(invoice.sgst || 0) +
+        Number(invoice.igst || 0);
+
+      const taxable =
+        Number(invoice.subtotal || 0);
+
+      // Single blended rate for this document — GSTTransaction (like the
+      // manual-entry GST Transactions page it powers) stores one rate per
+      // document, not per line item.
+      const taxRate =
+        taxable > 0
+          ? Math.round(
+              (totalTax / taxable) * 100
+            )
+          : 0;
+
+      await gstTransactionRepository.create({
+
+        date:
+          invoice.invoiceDate,
+
+        documentNumber:
+          invoice.invoiceNumber,
+
+        documentType: "INVOICE",
+
+        type: "OUTWARD",
+
+        customer:
+          customer?._id || invoice.customer,
+
+        gstin:
+          customer?.gstin || undefined,
+
+        placeOfSupply:
+          customer?.state || undefined,
+
+        taxRate,
+
+        taxableAmount: taxable,
+
+        cgst:
+          Number(invoice.cgst || 0),
+
+        sgst:
+          Number(invoice.sgst || 0),
+
+        igst:
+          Number(invoice.igst || 0),
+
+        cess: 0,
+
+        totalTax,
+
+        totalAmount:
+          Number(invoice.total || 0),
+
+        status: "GENERATED",
+
+        source: "INVOICE",
+
+        invoice: invoice._id,
+
+        company: user.company,
+
+        createdBy: user._id,
+
+      });
+
+    } catch {
+      // Swallow — see comment above.
+    }
+
   };
 
 

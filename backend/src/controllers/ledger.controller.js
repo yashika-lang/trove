@@ -87,6 +87,97 @@ const getCompanyLedgerController = asyncHandler(
   }
 );
 // ==========================================
+// EXPORT COMPANY LEDGER
+// ==========================================
+
+const exportCompanyLedgerController = asyncHandler(
+  async (req, res) => {
+
+    const {
+      customer,
+      type,
+      search,
+      startDate,
+      endDate,
+    } = req.query;
+
+
+    const result = await getCompanyLedger(
+      req.user,
+      {
+        customer,
+        type,
+        search,
+        startDate,
+        endDate,
+
+        // Export should contain all filtered entries
+        page: 1,
+        limit: 100000,
+      }
+    );
+
+
+    const csvData = result.entries.map(
+      (entry) => ({
+        Date: entry.date
+          ? new Date(entry.date)
+              .toISOString()
+              .split("T")[0]
+          : "",
+
+        Particular:
+          entry.particular || "",
+
+        Account:
+          entry.account || "",
+
+        Reference:
+          entry.referenceNumber || "",
+
+        Debit:
+          entry.debit || 0,
+
+        Credit:
+          entry.credit || 0,
+
+        Balance:
+          entry.balance || 0,
+      })
+    );
+
+
+    const csv = convertToCSV(
+      csvData,
+      [
+        "Date",
+        "Particular",
+        "Account",
+        "Reference",
+        "Debit",
+        "Credit",
+        "Balance",
+      ]
+    );
+
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="customer-ledger.csv"'
+    );
+
+
+    return res.status(200).send(csv);
+  }
+);
+
+
+// ==========================================
 // EXPORT CUSTOMER LEDGER
 // ==========================================
 
@@ -177,5 +268,6 @@ const exportCustomerLedgerController = asyncHandler(
 export {
   getCustomerLedgerController,
   getCompanyLedgerController,
+  exportCompanyLedgerController,
   exportCustomerLedgerController,
 };

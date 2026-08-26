@@ -175,8 +175,8 @@ class AccountantDashboardService {
             "Bank transaction recorded",
 
           description:
-            transaction.description ||
-            transaction.reference ||
+            transaction.narration ||
+            transaction.referenceNumber ||
             "",
 
           amount:

@@ -10,6 +10,27 @@ import {
   getITCSummary,
 } from "../repositories/itc.repository.js";
 
+import { createGSTAuditLog } from "../repositories/gstAuditLog.repository.js";
+import { notificationService } from "./notification.service.js";
+import GSTTransaction from "../models/gstTransaction.model.js";
+
+// Mirrors ITC's own Mongoose enums exactly (itc.model.js) — the previous
+// lists here ("INELIGIBLE"/"PARTIAL", "NOT_CLAIMED") don't exist on the
+// schema at all, so any create/update using them would pass this
+// service's own check and then crash with a Mongoose ValidationError.
+const ALLOWED_ELIGIBILITY = [
+  "ELIGIBLE",
+  "BLOCKED",
+  "PENDING",
+];
+
+const ALLOWED_CLAIM_STATUS = [
+  "AVAILABLE",
+  "CLAIMED",
+  "PARTIALLY_CLAIMED",
+  "REVERSED",
+];
+
 
 class ITCService {
 
@@ -24,67 +45,59 @@ class ITCService {
 
     const {
       transaction,
-      documentNumber,
-      documentDate,
-      supplierName,
-      gstin,
-      taxableAmount = 0,
-      cgstAvailable = 0,
-      sgstAvailable = 0,
-      igstAvailable = 0,
-      cessAvailable = 0,
-      eligibility = "ELIGIBLE",
-      claimStatus = "NOT_CLAIMED",
-      claimed = 0,
-      reversed = 0,
+      eligibility = "PENDING",
+      eligibilityReason,
       notes,
     } = data;
 
 
     // ----------------------------------------
-    // REQUIRED FIELDS
+    // TRANSACTION REQUIRED
+    // ----------------------------------------
+    //
+    // ITC is only ever available/blocked/pending against a real inward
+    // (purchase) GST transaction — the model itself requires this
+    // reference. Rather than let the caller re-type a second, possibly
+    // drifted set of document/supplier/tax figures, every ITC-relevant
+    // field is derived straight from that transaction, so ITC math can
+    // never disagree with the GST Transactions ledger it comes from.
     // ----------------------------------------
 
-    if (!documentNumber?.trim()) {
+    if (
+      !transaction ||
+      !mongoose.Types.ObjectId.isValid(
+        transaction
+      )
+    ) {
       throw new ApiError(
         400,
-        "Document number is required."
+        "A valid inward GST transaction is required."
       );
     }
 
 
-    if (!supplierName?.trim()) {
+    const gstTransaction =
+      await GSTTransaction.findOne({
+        _id: transaction,
+        company: user.company,
+      }).lean();
+
+
+    if (!gstTransaction) {
       throw new ApiError(
-        400,
-        "Supplier name is required."
+        404,
+        "GST transaction not found."
       );
     }
 
 
-    if (!gstin?.trim()) {
+    if (
+      gstTransaction.type !== "INWARD"
+    ) {
       throw new ApiError(
         400,
-        "GSTIN is required."
+        "ITC can only be created for an inward (purchase) GST transaction."
       );
-    }
-
-
-    // ----------------------------------------
-    // VALIDATE TRANSACTION ID
-    // ----------------------------------------
-
-    if (transaction) {
-
-      if (
-        !mongoose.Types.ObjectId.isValid(
-          transaction
-        )
-      ) {
-        throw new ApiError(
-          400,
-          "Invalid GST transaction ID."
-        );
-      }
     }
 
 
@@ -92,14 +105,8 @@ class ITCService {
     // VALIDATE ELIGIBILITY
     // ----------------------------------------
 
-    const allowedEligibility = [
-      "ELIGIBLE",
-      "INELIGIBLE",
-      "PARTIAL",
-    ];
-
     if (
-      !allowedEligibility.includes(
+      !ALLOWED_ELIGIBILITY.includes(
         eligibility
       )
     ) {
@@ -110,80 +117,27 @@ class ITCService {
     }
 
 
-    // ----------------------------------------
-    // VALIDATE CLAIM STATUS
-    // ----------------------------------------
-
-    const allowedClaimStatus = [
-      "NOT_CLAIMED",
-      "CLAIMED",
-      "REVERSED",
-    ];
-
     if (
-      !allowedClaimStatus.includes(
-        claimStatus
-      )
+      eligibility === "BLOCKED" &&
+      !eligibilityReason?.trim()
     ) {
       throw new ApiError(
         400,
-        "Invalid ITC claim status."
+        "A reason is required when marking ITC as blocked."
       );
     }
 
 
     // ----------------------------------------
-    // NORMALIZE NUMBERS
+    // ONE ITC ENTRY PER TRANSACTION
     // ----------------------------------------
 
-    const taxable =
-      Number(taxableAmount) || 0;
-
-    const cgst =
-      Number(cgstAvailable) || 0;
-
-    const sgst =
-      Number(sgstAvailable) || 0;
-
-    const igst =
-      Number(igstAvailable) || 0;
-
-    const cess =
-      Number(cessAvailable) || 0;
-
-    const claimedAmount =
-      Number(claimed) || 0;
-
-    const reversedAmount =
-      Number(reversed) || 0;
-
-
-    if (
-      taxable < 0 ||
-      cgst < 0 ||
-      sgst < 0 ||
-      igst < 0 ||
-      cess < 0 ||
-      claimedAmount < 0 ||
-      reversedAmount < 0
-    ) {
-      throw new ApiError(
-        400,
-        "ITC amounts cannot be negative."
-      );
-    }
-
-
-    // ----------------------------------------
-    // DUPLICATE DOCUMENT CHECK
-    // ----------------------------------------
-
-    const existing =
+    const existingForTransaction =
       await getITCEntries(
         user.company,
         {
           search:
-            documentNumber.trim(),
+            gstTransaction.documentNumber,
         },
         0,
         100
@@ -191,71 +145,72 @@ class ITCService {
 
 
     const duplicate =
-      existing.entries.find(
+      existingForTransaction.entries.find(
         (entry) =>
-          entry.documentNumber
-            ?.toLowerCase() ===
-          documentNumber
-            .trim()
-            .toLowerCase()
+          String(
+            entry.transaction?._id ||
+              entry.transaction
+          ) === String(transaction)
       );
 
 
     if (duplicate) {
       throw new ApiError(
         409,
-        "ITC entry with this document number already exists."
+        "An ITC entry already exists for this GST transaction."
       );
     }
 
 
     // ----------------------------------------
-    // CREATE DATA
+    // CREATE DATA — tax figures derived from
+    // the transaction, not re-entered
     // ----------------------------------------
 
     const itcData = {
 
       transaction:
-        transaction || null,
+        gstTransaction._id,
 
       documentNumber:
-        documentNumber.trim(),
+        gstTransaction.documentNumber,
 
       documentDate:
-        documentDate || null,
+        gstTransaction.date,
 
       supplierName:
-        supplierName.trim(),
+        gstTransaction.supplierName ||
+        "Unknown Supplier",
 
       gstin:
-        gstin
-          .trim()
+        (gstTransaction.gstin || "")
           .toUpperCase(),
 
       taxableAmount:
-        taxable,
+        gstTransaction.taxableAmount || 0,
 
       cgstAvailable:
-        cgst,
+        gstTransaction.cgst || 0,
 
       sgstAvailable:
-        sgst,
+        gstTransaction.sgst || 0,
 
       igstAvailable:
-        igst,
+        gstTransaction.igst || 0,
 
       cessAvailable:
-        cess,
+        gstTransaction.cess || 0,
 
       eligibility,
 
-      claimStatus,
+      eligibilityReason:
+        eligibilityReason?.trim() || "",
 
-      claimed:
-        claimedAmount,
+      claimStatus: "AVAILABLE",
 
-      reversed:
-        reversedAmount,
+      claimed: 0,
+
+      reversed: 0,
 
       notes:
         notes?.trim() || "",
@@ -278,7 +233,7 @@ class ITCService {
   // GET ITC ENTRIES
   // ==========================================
 
-  async getITCEntriesService(
+  async getITCEntries(
     user,
     filters = {}
   ) {
@@ -317,7 +272,7 @@ class ITCService {
   // GET ITC BY ID
   // ==========================================
 
-  async getITCByIdService(
+  async getITCById(
     entryId,
     user
   ) {
@@ -363,7 +318,7 @@ class ITCService {
     user
   ) {
 
-    await this.getITCByIdService(
+    await this.getITCById(
       entryId,
       user
     );
@@ -464,15 +419,8 @@ class ITCService {
       data.eligibility !== undefined
     ) {
 
-      const allowedEligibility = [
-        "ELIGIBLE",
-        "INELIGIBLE",
-        "PARTIAL",
-      ];
-
-
       if (
-        !allowedEligibility.includes(
+        !ALLOWED_ELIGIBILITY.includes(
           data.eligibility
         )
       ) {
@@ -496,15 +444,8 @@ class ITCService {
       data.claimStatus !== undefined
     ) {
 
-      const allowedClaimStatus = [
-        "NOT_CLAIMED",
-        "CLAIMED",
-        "REVERSED",
-      ];
-
-
       if (
-        !allowedClaimStatus.includes(
+        !ALLOWED_CLAIM_STATUS.includes(
           data.claimStatus
         )
       ) {
@@ -657,10 +598,236 @@ class ITCService {
 
 
   // ==========================================
+  // CLAIM ITC
+  // ==========================================
+  //
+  // The credit-by-tax-head "Available" figure for an entry is the sum of
+  // its four availability fields; claiming can never exceed what's left
+  // after whatever has already been claimed or reversed.
+  // ==========================================
+
+  async claimITC(
+    entryId,
+    amount,
+    user
+  ) {
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        entryId
+      )
+    ) {
+      throw new ApiError(
+        400,
+        "Invalid ITC entry ID."
+      );
+    }
+
+    const entry =
+      await getITCById(
+        entryId,
+        user.company
+      );
+
+    if (!entry) {
+      throw new ApiError(
+        404,
+        "ITC entry not found."
+      );
+    }
+
+    if (entry.eligibility === "BLOCKED") {
+      throw new ApiError(
+        400,
+        "Blocked ITC cannot be claimed."
+      );
+    }
+
+    const claimAmount =
+      Number(amount);
+
+    if (
+      Number.isNaN(claimAmount) ||
+      claimAmount <= 0
+    ) {
+      throw new ApiError(
+        400,
+        "Invalid claim amount."
+      );
+    }
+
+    const totalAvailable =
+      Number(entry.cgstAvailable || 0) +
+      Number(entry.sgstAvailable || 0) +
+      Number(entry.igstAvailable || 0) +
+      Number(entry.cessAvailable || 0);
+
+    const alreadyClaimed =
+      Number(entry.claimed || 0);
+
+    const remaining =
+      totalAvailable - alreadyClaimed;
+
+    if (claimAmount > remaining) {
+      throw new ApiError(
+        400,
+        `Cannot claim more than the remaining available credit (₹${remaining}).`
+      );
+    }
+
+    const newClaimed =
+      alreadyClaimed + claimAmount;
+
+    const claimStatus =
+      newClaimed >= totalAvailable
+        ? "CLAIMED"
+        : "PARTIALLY_CLAIMED";
+
+    const updated =
+      await updateITC(
+        entryId,
+        user.company,
+        {
+          claimed: newClaimed,
+          claimStatus,
+        }
+      );
+
+    try {
+      await createGSTAuditLog({
+        action: "ITC_CLAIMED",
+        description: `₹${claimAmount.toLocaleString("en-IN")} claimed on ${entry.documentNumber} (${entry.supplierName})`,
+        entityType: "ITC",
+        entityId: entry._id,
+        metadata: { claimAmount, newClaimed, claimStatus },
+        performedBy: user._id,
+        company: user.company,
+      });
+    } catch {
+      // Never let audit logging block the claim itself.
+    }
+
+    return updated;
+  }
+
+
+  // ==========================================
+  // REVERSE ITC
+  // ==========================================
+  //
+  // A reversal only ever applies against what's net-claimed so far
+  // (claimed - reversed) — e.g. because the supplier's GSTR-1 wasn't
+  // filed and the credit is no longer valid.
+  // ==========================================
+
+  async reverseITC(
+    entryId,
+    amount,
+    user
+  ) {
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        entryId
+      )
+    ) {
+      throw new ApiError(
+        400,
+        "Invalid ITC entry ID."
+      );
+    }
+
+    const entry =
+      await getITCById(
+        entryId,
+        user.company
+      );
+
+    if (!entry) {
+      throw new ApiError(
+        404,
+        "ITC entry not found."
+      );
+    }
+
+    const reverseAmount =
+      Number(amount);
+
+    if (
+      Number.isNaN(reverseAmount) ||
+      reverseAmount <= 0
+    ) {
+      throw new ApiError(
+        400,
+        "Invalid reversal amount."
+      );
+    }
+
+    const alreadyClaimed =
+      Number(entry.claimed || 0);
+
+    const alreadyReversed =
+      Number(entry.reversed || 0);
+
+    const netClaimed =
+      alreadyClaimed - alreadyReversed;
+
+    if (reverseAmount > netClaimed) {
+      throw new ApiError(
+        400,
+        `Cannot reverse more than the net claimed amount (₹${netClaimed}).`
+      );
+    }
+
+    const newReversed =
+      alreadyReversed + reverseAmount;
+
+    const claimStatus =
+      newReversed >= alreadyClaimed
+        ? "REVERSED"
+        : entry.claimStatus;
+
+    const updated =
+      await updateITC(
+        entryId,
+        user.company,
+        {
+          reversed: newReversed,
+          claimStatus,
+        }
+      );
+
+    try {
+      await createGSTAuditLog({
+        action: "ITC_REVERSED",
+        description: `₹${reverseAmount.toLocaleString("en-IN")} reversed on ${entry.documentNumber} (${entry.supplierName})`,
+        entityType: "ITC",
+        entityId: entry._id,
+        metadata: { reverseAmount, newReversed, claimStatus },
+        performedBy: user._id,
+        company: user.company,
+      });
+    } catch {
+      // Never let audit logging block the reversal itself.
+    }
+
+    await notificationService.notify({
+      companyId: user.company,
+      type: "ITC_REVERSED",
+      title: `ITC reversed on ${entry.documentNumber}`,
+      message: `₹${reverseAmount.toLocaleString("en-IN")} reversed · ${entry.supplierName}`,
+      relatedId: entry._id,
+    });
+
+    return updated;
+  }
+
+
+  // ==========================================
   // ITC SUMMARY
   // ==========================================
 
-  async getITCSummaryService(
+  async getITCSummary(
     user
   ) {
 
@@ -725,7 +892,7 @@ export const getITCEntriesService =
     filters = {}
   ) => {
 
-    return await itcService.getITCEntriesService(
+    return await itcService.getITCEntries(
       user,
       filters
     );
@@ -738,7 +905,7 @@ export const getITCByIdService =
     user
   ) => {
 
-    return await itcService.getITCByIdService(
+    return await itcService.getITCById(
       entryId,
       user
     );
@@ -778,7 +945,7 @@ export const getITCSummaryService =
     user
   ) => {
 
-    return await itcService.getITCSummaryService(
+    return await itcService.getITCSummary(
       user
     );
   };

@@ -8,6 +8,8 @@ import {
   updatePaymentStatus,
   deletePayment,
   getPaymentStats,
+  downloadPaymentReceiptPdf,
+  emailPaymentReceipt,
 } from "../controllers/payment.controller.js";
 
 import {
@@ -49,6 +51,20 @@ router.get(
   verifyJWT,
   authorizeRoles("Admin", "Sales", "Accountant"),
   getPaymentById
+);
+
+router.get(
+  "/:paymentId/pdf",
+  verifyJWT,
+  authorizeRoles("Admin", "Sales", "Accountant"),
+  downloadPaymentReceiptPdf
+);
+
+router.post(
+  "/:paymentId/email",
+  verifyJWT,
+  authorizeRoles("Admin", "Sales", "Accountant"),
+  emailPaymentReceipt
 );
 
 // ==========================================

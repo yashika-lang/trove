@@ -174,7 +174,11 @@ const getOutstandingReport = asyncHandler(
 
     const data =
       await getOutstandingReportService(
-        req.user
+        req.user,
+        {
+          search:
+            req.query.search,
+        }
       );
 
 

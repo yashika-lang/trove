@@ -2,6 +2,7 @@ import ApiError from "../exceptions/ApiError.js";
 import { parse } from "csv-parse/sync";
 
 import Bank from "../models/bank.model.js";
+import { notificationService } from "./notification.service.js";
 
 import {
   createImportedBankTransaction,
@@ -427,6 +428,21 @@ const importBankStatement = async (
 
   const createdTransactions = [];
 
+  // Compute the starting number once, then increment in memory for the
+  // rest of the batch — previously this re-scanned every existing
+  // transaction on every single loop iteration (O(n^2) DB reads for an
+  // n-row CSV).
+  const firstTransactionNumber =
+    await generateTransactionNumber(
+      user.company
+    );
+
+  let nextNumber = parseInt(
+    firstTransactionNumber.replace("BT-", ""),
+    10
+  );
+
+  let runningBalance = previousBalance;
 
   for (
     const transactionData
@@ -434,10 +450,14 @@ const importBankStatement = async (
   ) {
 
     const transactionNumber =
-      await generateTransactionNumber(
-        user.company
-      );
+      `BT-${String(nextNumber).padStart(4, "0")}`;
 
+    nextNumber += 1;
+
+    runningBalance =
+      transactionData.type === "CREDIT"
+        ? runningBalance + transactionData.amount
+        : runningBalance - transactionData.amount;
 
     const transaction =
       await createImportedBankTransaction({
@@ -445,6 +465,9 @@ const importBankStatement = async (
         ...transactionData,
 
         transactionNumber,
+
+        balanceAfterTransaction:
+          runningBalance,
       });
 
 
@@ -507,7 +530,23 @@ const importBankStatement = async (
 
 
   // ========================================
-  // 14. RETURN IMPORT RESULT
+  // 14. NOTIFY
+  // ========================================
+  // A bulk import is a noteworthy event worth surfacing — unlike a single
+  // manual bank entry, it can silently move a large balance and is worth an
+  // audit trail entry in the notification feed.
+
+  await notificationService.notify({
+    companyId: user.company,
+    type: "BANK_IMPORT_COMPLETED",
+    title: "Bank statement imported",
+    message: `${createdTransactions.length} transaction(s) imported into ${bank.bankName} (A/c ${bank.accountNumber}).`,
+    relatedId: bank._id,
+  });
+
+
+  // ========================================
+  // 15. RETURN IMPORT RESULT
   // ========================================
 
   return {

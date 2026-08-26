@@ -46,29 +46,33 @@ const createBankTransaction = async (
   const transactionNumber =
     await generateTransactionNumber(user.company);
 
+  // Compute and validate the resulting balance before creating the
+  // transaction, so a DEBIT that would go negative never creates an orphan
+  // row that then has to be deleted — and so balanceAfterTransaction can be
+  // stored on the transaction itself (see model comment) rather than
+  // recomputed later by walking back from the bank's live balance.
+  const newBalance =
+    transactionData.type === "CREDIT"
+      ? bank.currentBalance + transactionData.amount
+      : bank.currentBalance - transactionData.amount;
+
+  if (newBalance < 0) {
+    throw new ApiError(
+      400,
+      "Insufficient bank balance."
+    );
+  }
+
   const transaction =
     await createBankTransactionRepository({
       ...transactionData,
       transactionNumber,
+      balanceAfterTransaction: newBalance,
       company: user.company,
       createdBy: user._id,
     });
 
-  if (transaction.type === "CREDIT") {
-    bank.currentBalance += transaction.amount;
-  } else {
-    if (transaction.amount > bank.currentBalance) {
-      await transaction.deleteOne();
-
-      throw new ApiError(
-        400,
-        "Insufficient bank balance."
-      );
-    }
-
-    bank.currentBalance -= transaction.amount;
-  }
-
+  bank.currentBalance = newBalance;
   await bank.save();
 
   return transaction;
@@ -268,12 +272,19 @@ const deleteBankTransaction = async (
   });
 
   if (bank) {
-    if (transaction.type === "CREDIT") {
-      bank.currentBalance -= transaction.amount;
-    } else {
-      bank.currentBalance += transaction.amount;
+    const reversedBalance =
+      transaction.type === "CREDIT"
+        ? bank.currentBalance - transaction.amount
+        : bank.currentBalance + transaction.amount;
+
+    if (reversedBalance < 0) {
+      throw new ApiError(
+        400,
+        "Cannot delete this transaction — it would take the bank balance negative."
+      );
     }
 
+    bank.currentBalance = reversedBalance;
     await bank.save();
   }
 

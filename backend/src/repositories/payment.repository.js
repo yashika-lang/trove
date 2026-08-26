@@ -1,7 +1,41 @@
 import Payment from "../models/payment.model.js";
+import Customer from "../models/customer.model.js";
+import Invoice from "../models/invoice.model.js";
 
 const createPayment = async (paymentData) => {
   return await Payment.create(paymentData);
+};
+
+// Expands a { $or: [...] } search clause already containing
+// paymentNumber/utr/referenceNumber matches (built in payment.service.js)
+// with customer-name and invoice-number lookups, mirroring the same
+// pattern used in quotation.repository.js / invoice.repository.js.
+const expandSearchQuery = async (query) => {
+  if (!query.$or) return query;
+
+  const searchTerm = query.$or[0]?.paymentNumber?.$regex;
+  if (!searchTerm) return query;
+
+  const [matchingCustomers, matchingInvoices] = await Promise.all([
+    Customer.find({
+      company: query.company,
+      customerName: { $regex: searchTerm, $options: "i" },
+    }).select("_id"),
+
+    Invoice.find({
+      company: query.company,
+      invoiceNumber: { $regex: searchTerm, $options: "i" },
+    }).select("_id"),
+  ]);
+
+  return {
+    ...query,
+    $or: [
+      ...query.$or,
+      { customer: { $in: matchingCustomers.map((c) => c._id) } },
+      { invoice: { $in: matchingInvoices.map((i) => i._id) } },
+    ],
+  };
 };
 
 const findPayments = async (query, options = {}) => {
@@ -11,7 +45,9 @@ const findPayments = async (query, options = {}) => {
     sort = { createdAt: -1 },
   } = options;
 
-  return await Payment.find(query)
+  const expandedQuery = await expandSearchQuery(query);
+
+  return await Payment.find(expandedQuery)
     .populate("customer")
     .populate("invoice")
     .sort(sort)
@@ -20,7 +56,8 @@ const findPayments = async (query, options = {}) => {
 };
 
 const countPayments = async (query) => {
-  return await Payment.countDocuments(query);
+  const expandedQuery = await expandSearchQuery(query);
+  return await Payment.countDocuments(expandedQuery);
 };
 
 const findPaymentById = async (paymentId, companyId) => {
@@ -74,10 +111,15 @@ const getPaymentStats = async (companyId) => {
           $sum: 1,
         },
 
+        // A payment record's own status reflects whether that transaction
+        // itself succeeded — PAID and PARTIALLY_PAID both represent real
+        // money received (the `amount` field is what actually came in);
+        // PENDING/FAILED/REFUNDED are correctly excluded since no money is
+        // currently held for those.
         collected: {
           $sum: {
             $cond: [
-              { $eq: ["$status", "PAID"] },
+              { $in: ["$status", ["PAID", "PARTIALLY_PAID"]] },
               "$amount",
               0,
             ],

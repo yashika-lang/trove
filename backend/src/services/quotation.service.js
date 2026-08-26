@@ -4,6 +4,7 @@ import Customer from "../models/customer.model.js";
 import Product from "../models/product.model.js";
 import Company from "../models/company.model.js";
 import ApiError from "../exceptions/ApiError.js";
+import { notificationService } from "./notification.service.js";
 
 class QuotationService {
   constructor() {
@@ -640,7 +641,7 @@ class QuotationService {
       );
     }
 
-    return await this.quotationRepository
+    const updated = await this.quotationRepository
       .updateQuotation(
         quotationId,
         companyId,
@@ -648,6 +649,20 @@ class QuotationService {
           status,
         }
       );
+
+    if (status === "APPROVED") {
+      await notificationService.notify({
+        companyId,
+        type: "QUOTATION_APPROVED",
+        title: `Quotation ${updated.quotationNumber} approved`,
+        message: updated.customer?.customerName
+          ? updated.customer.customerName
+          : "Customer",
+        relatedId: updated._id,
+      });
+    }
+
+    return updated;
   }
 
   // ==========================================

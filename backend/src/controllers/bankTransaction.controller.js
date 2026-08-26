@@ -1,5 +1,6 @@
 import asyncHandler from "../exceptions/asyncHandler.js";
 import ApiResponse from "../exceptions/ApiResponse.js";
+import { convertToCSV } from "../utils/csvExport.js";
 
 import {
   createBankTransaction as createBankTransactionService,
@@ -182,6 +183,95 @@ const getBankTransactionStats = asyncHandler(
 );
 
 
+// ==========================================
+// EXPORT BANK TRANSACTIONS
+// ==========================================
+
+const exportBankTransactions = asyncHandler(
+  async (req, res) => {
+    const {
+      bankAccount,
+      type,
+      reconciliationStatus,
+      search,
+    } = req.query;
+
+    const result = await getAllBankTransactionsService(
+      req.user,
+      {
+        bankAccount,
+        type,
+        reconciliationStatus,
+        search,
+
+        // Export all filtered rows, not just one page.
+        page: 1,
+        limit: 100000,
+      }
+    );
+
+    const csvData = result.transactions.map(
+      (transaction) => ({
+        Date: transaction.transactionDate
+          ? new Date(transaction.transactionDate)
+              .toISOString()
+              .split("T")[0]
+          : "",
+
+        Bank:
+          transaction.bankAccount?.bankName || "",
+
+        "Account Number":
+          transaction.bankAccount?.accountNumber || "",
+
+        Narration: transaction.narration || "",
+
+        "Transaction No": transaction.transactionNumber || "",
+
+        Reference: transaction.referenceNumber || "",
+
+        Credit:
+          transaction.type === "CREDIT"
+            ? transaction.amount
+            : 0,
+
+        Debit:
+          transaction.type === "DEBIT"
+            ? transaction.amount
+            : 0,
+
+        Balance:
+          transaction.balanceAfterTransaction ?? "",
+
+        "Reconciliation Status":
+          transaction.reconciliationStatus || "",
+      })
+    );
+
+    const csv = convertToCSV(
+      csvData,
+      [
+        "Date",
+        "Bank",
+        "Account Number",
+        "Narration",
+        "Transaction No",
+        "Reference",
+        "Credit",
+        "Debit",
+        "Balance",
+        "Reconciliation Status",
+      ]
+    );
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("bank-transactions.csv");
+
+    return res.status(200).send(csv);
+  }
+);
+
+
 export {
   createBankTransaction,
   getAllBankTransactions,
@@ -190,4 +280,5 @@ export {
   deleteBankTransaction,
   reconcileBankTransaction,
   getBankTransactionStats,
+  exportBankTransactions,
 };

@@ -1,5 +1,6 @@
 import ProductRepository from "../repositories/product.repository.js";
 import ApiError from "../exceptions/ApiError.js";
+import { LOW_STOCK_THRESHOLD, computeStockStatus } from "../constants/stock.js";
 
 class ProductService {
 
@@ -58,8 +59,20 @@ class ProductService {
       status,
     });
 
+    // Attach a server-computed stockStatus to each product so every caller
+    // (Admin viewing stats, Sales who can't reach the Admin-only /stats
+    // endpoint, etc.) sees the same low-stock/out-of-stock classification
+    // instead of each screen guessing its own threshold.
+    const productsWithStockStatus = products.map((product) => {
+      const plain = product.toObject();
+      return {
+        ...plain,
+        stockStatus: computeStockStatus(plain.openingStock),
+      };
+    });
+
     return {
-      products,
+      products: productsWithStockStatus,
       pagination: {
         page,
         limit,
@@ -161,7 +174,7 @@ class ProductService {
 
     return await this.productRepository.getProductStats(
       companyId,
-      10
+      LOW_STOCK_THRESHOLD
     );
   }
 }

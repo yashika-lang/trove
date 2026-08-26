@@ -7,6 +7,10 @@ const getSettings = async (companyId) => {
   return Settings.findOne({ company: companyId }).lean();
 };
 
+const getCompany = async (companyId) => {
+  return Company.findById(companyId).lean();
+};
+
 const createSettings = async (companyId) => {
   return Settings.create({ company: companyId });
 };
@@ -127,6 +131,7 @@ const unsetDefaultTemplates = async (companyId, type) => {
 
 export {
   getSettings,
+  getCompany,
   createSettings,
   updateCompany,
   updateSettings,

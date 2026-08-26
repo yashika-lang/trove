@@ -54,7 +54,7 @@ class SalesDashboardService {
           invoice.invoiceNumber,
 
         customer:
-          invoice.customer?.name ||
+          invoice.customer?.customerName ||
           "Customer",
 
         dueDate:
@@ -64,7 +64,7 @@ class SalesDashboardService {
           Math.max(
             0,
             (invoice.total || 0) -
-              (invoice.paidAmount || 0)
+              (invoice.amountPaid || 0)
           ),
 
         status:
@@ -127,7 +127,7 @@ class SalesDashboardService {
             } created`,
 
           description:
-            invoice.customer?.name ||
+            invoice.customer?.customerName ||
             "Customer",
 
           amount:
@@ -156,7 +156,7 @@ class SalesDashboardService {
             }`,
 
           description:
-            quotation.customer?.name ||
+            quotation.customer?.customerName ||
             "Customer",
 
           amount:

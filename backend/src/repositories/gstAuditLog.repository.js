@@ -47,7 +47,7 @@ const getGSTAuditLogs = async (
     GSTAuditLog.find(query)
       .populate(
         "performedBy",
-        "name email"
+        "fullName email"
       )
       .sort({
         createdAt: -1,
@@ -89,7 +89,7 @@ const getGSTAuditLogById = async (
   })
     .populate(
       "performedBy",
-      "name email"
+      "fullName email"
     )
     .lean();
 };

@@ -84,7 +84,7 @@ const getSalesDashboardSummary = async (
                 },
                 {
                   $ifNull: [
-                    "$paidAmount",
+                    "$amountPaid",
                     0,
                   ],
                 },
@@ -216,7 +216,7 @@ const getSalesFollowUps = async (
   })
     .populate(
       "customer",
-      "name"
+      "customerName"
     )
     .sort({
       dueDate: 1,
@@ -260,7 +260,7 @@ const getSalesRecentInvoices = async (
   })
     .populate(
       "customer",
-      "name"
+      "customerName"
     )
     .sort({
       createdAt: -1,
@@ -284,7 +284,7 @@ const getSalesRecentQuotations = async (
   })
     .populate(
       "customer",
-      "name"
+      "customerName"
     )
     .sort({
       createdAt: -1,

@@ -5,7 +5,6 @@ const paymentSchema = new mongoose.Schema(
     paymentNumber: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
     },
 
@@ -91,6 +90,13 @@ const paymentSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Payment numbers (PAY-0001...) are only meant to be unique within a
+// company, not globally — a global unique index on paymentNumber alone
+// meant the second company to ever reach "PAY-0003" would be permanently
+// blocked from creating it, since generatePaymentNumber() (payment.service.js)
+// only checks the current company's own last payment.
+paymentSchema.index({ company: 1, paymentNumber: 1 }, { unique: true });
 
 const Payment = mongoose.model("Payment", paymentSchema);
 

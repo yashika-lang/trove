@@ -471,13 +471,16 @@ const getCashLedger = async (
     );
 
 
+  // 100000 matches the "export all filtered entries" convention used by
+  // exportCashLedgerController — capping at 100 here would silently
+  // truncate any export beyond 100 rows despite that endpoint's own intent.
   const limit =
     Math.min(
       Math.max(
         Number(filters.limit) || 10,
         1
       ),
-      100
+      100000
     );
 
 

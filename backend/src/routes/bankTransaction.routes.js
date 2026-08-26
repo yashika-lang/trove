@@ -8,6 +8,7 @@ import {
   deleteBankTransaction,
   reconcileBankTransaction,
   getBankTransactionStats,
+  exportBankTransactions,
 } from "../controllers/bankTransaction.controller.js";
 
 import {
@@ -49,6 +50,19 @@ router.get(
   verifyJWT,
   authorizeRoles("admin", "accountant"),
   getBankTransactionStats
+);
+
+
+// ==========================================
+// EXPORT TRANSACTIONS (CSV)
+// Admin + Accountant
+// ==========================================
+
+router.get(
+  "/export",
+  verifyJWT,
+  authorizeRoles("admin", "accountant"),
+  exportBankTransactions
 );
 
 

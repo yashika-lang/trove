@@ -8,6 +8,11 @@ import {
   getSalesActivity,
 } from "../controllers/salesDashboard.controller.js";
 
+import {
+  verifyJWT,
+  authorizeRoles,
+} from "../middleware/auth.middleware.js";
+
 const router =
   express.Router();
 
@@ -15,6 +20,14 @@ const router =
 // ==========================================
 // SALES DASHBOARD
 // ==========================================
+
+router.use(
+  verifyJWT,
+  authorizeRoles(
+    "ADMIN",
+    "SALES"
+  )
+);
 
 router.get(
   "/summary",

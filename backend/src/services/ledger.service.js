@@ -244,13 +244,17 @@ const paginateEntries = (
       1
     );
 
+  // 100000 matches the "export all filtered entries" convention used by
+  // exportCompanyLedgerController/exportCustomerLedgerController — capping
+  // at 100 here would silently truncate any export beyond 100 rows despite
+  // those endpoints' own intent.
   const perPage =
     Math.min(
       Math.max(
         Number(limit) || 10,
         1
       ),
-      100
+      100000
     );
 
   const total =

@@ -26,6 +26,7 @@ import gstReconciliationRoutes from "./routes/gstReconciliation.routes.js";
 import gstReturnRoutes from "./routes/gstReturn.routes.js";
 import gstSettingsRoutes from "./routes/gstSettings.routes.js";
 import gstAuditLogRoutes from "./routes/gstAuditLog.routes.js";
+import gstValidationRoutes from "./routes/gstValidation.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import salesDashboardRoutes
   from "./routes/salesDashboard.routes.js";
@@ -38,6 +39,9 @@ import reportExportRoutes
   from "./routes/reportExport.routes.js";
   import profileRoutes from "./routes/profile.routes.js";
   import settingsRoutes from "./routes/settings.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
+import searchRoutes from "./routes/search.routes.js";
+import creditDebitNoteRoutes from "./routes/creditDebitNote.routes.js";
 
 /*import authRoutes from "./routes/auth.routes.js"; */
 
@@ -48,10 +52,15 @@ import globalErrorHandler from "./exceptions/globalErrorHandler.js";
 const app = express(); // it returns an instance of express application say : get , post put , delete etc 
 
 // CORS
-app.use( // middleware to handle cross- origin requests 
-  cors({ 
+app.use( // middleware to handle cross- origin requests
+  cors({
     origin: process.env.CLIENT_URL,
     credentials: true,
+    // Without this, cross-origin XHR/fetch responses can't read
+    // Content-Disposition (it isn't on the CORS-safelisted header list by
+    // default) — needed so the frontend can recover the server-generated
+    // filename for report/bank/ledger CSV, Excel and PDF exports.
+    exposedHeaders: ["Content-Disposition"],
   })
 );
 
@@ -150,6 +159,10 @@ app.use(
   gstAuditLogRoutes
 );
 app.use(
+  "/api/v1/gst-validation",
+  gstValidationRoutes
+);
+app.use(
   "/api/v1/dashboard",
   dashboardRoutes
 );
@@ -175,6 +188,9 @@ app.use(
   profileRoutes
 );
 app.use("/api/v1/settings", settingsRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/search", searchRoutes);
+app.use("/api/v1/credit-debit-notes", creditDebitNoteRoutes);
 // 404 Middleware
 app.use(notFound); 
 // Global Error Handler

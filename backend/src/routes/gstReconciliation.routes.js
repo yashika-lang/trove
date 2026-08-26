@@ -15,6 +15,8 @@ import {
   getGSTReconciliationsController,
   getGSTReconciliationByIdController,
   updateGSTReconciliationController,
+  getGSTReconciliationRecordStatsController,
+  rerunGSTReconciliationMatchController,
 } from "../controllers/gstReconciliation.controller.js";
 
 const router = express.Router();
@@ -52,6 +54,20 @@ router.patch(
   verifyJWT,
   authorizeRoles("admin", "accountant"),
   markGSTTransactionMismatchController
+);
+
+router.get(
+  "/record-stats",
+  verifyJWT,
+  authorizeRoles("admin", "accountant"),
+  getGSTReconciliationRecordStatsController
+);
+
+router.post(
+  "/rerun-match",
+  verifyJWT,
+  authorizeRoles("admin", "accountant"),
+  rerunGSTReconciliationMatchController
 );
 
 router.get(

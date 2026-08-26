@@ -385,8 +385,61 @@ const getGSTReconciliations =
       })
       .populate(
         "createdBy",
-        "name email"
+        "fullName email"
       );
+  };
+
+
+// ==========================================
+// RECONCILIATION RECORD STATS
+// ==========================================
+//
+// Matches the reference UI's summary cards (Matched / Value mismatch /
+// Missing in books / Missing in 2B) — counts real GSTReconciliation
+// records by their own status field. The GSTTransaction-based stats
+// above aggregate a different, disconnected field (reconciliationStatus)
+// that doesn't exist on that model at all and is never populated.
+// ==========================================
+
+const getReconciliationRecordStats =
+  async (companyId, filters = {}) => {
+
+    const query = {
+      company: companyId,
+    };
+
+    if (filters.period) {
+      query.period = filters.period;
+    }
+
+    const result =
+      await GSTReconciliation.aggregate([
+        {
+          $match: query,
+        },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+    const stats = {
+      matched: 0,
+      valueMismatch: 0,
+      missingInBooks: 0,
+      missingIn2B: 0,
+    };
+
+    for (const item of result) {
+      if (item._id === "MATCHED") stats.matched = item.count;
+      if (item._id === "VALUE_MISMATCH") stats.valueMismatch = item.count;
+      if (item._id === "MISSING_IN_BOOKS") stats.missingInBooks = item.count;
+      if (item._id === "MISSING_IN_2B") stats.missingIn2B = item.count;
+    }
+
+    return stats;
   };
 
 
@@ -404,7 +457,7 @@ const getGSTReconciliationById =
       company: companyId,
     }).populate(
       "createdBy",
-      "name email"
+      "fullName email"
     );
   };
 
@@ -433,7 +486,7 @@ const updateGSTReconciliation =
       }
     ).populate(
       "createdBy",
-      "name email"
+      "fullName email"
     );
   };
 
@@ -448,4 +501,5 @@ export {
   getGSTReconciliations,
   getGSTReconciliationById,
   updateGSTReconciliation,
+  getReconciliationRecordStats,
 };

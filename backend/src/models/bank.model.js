@@ -117,6 +117,15 @@ const bankSchema = new mongoose.Schema(
 );
 
 
+// Prevents the same bank account (by account number) from being added
+// twice under the same company — previously unenforced at the schema
+// level, which allowed duplicate HDFC-style entries to accumulate.
+bankSchema.index(
+  { company: 1, accountNumber: 1 },
+  { unique: true }
+);
+
+
 const Bank = mongoose.model(
   "Bank",
   bankSchema

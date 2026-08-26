@@ -1,6 +1,9 @@
 import Payment from "../models/payment.model.js";
 import Invoice from "../models/invoice.model.js";
+import Customer from "../models/customer.model.js";
 import ApiError from "../exceptions/ApiError.js";
+import { notificationService } from "./notification.service.js";
+import CustomerRepository from "../repositories/customer.repository.js";
 
 import {
   createPayment as createPaymentRepository,
@@ -11,6 +14,8 @@ import {
   deletePayment as deletePaymentRepository,
   getPaymentStats as getPaymentStatsRepository,
 } from "../repositories/payment.repository.js";
+
+const customerRepository = new CustomerRepository();
 
 
 // ==========================================
@@ -74,9 +79,24 @@ const recalculateInvoicePayment = async (invoiceId, companyId) => {
     invoice.status = "PAID";
   } else if (amountPaid > 0) {
     invoice.status = "PARTIALLY_PAID";
+  } else if (!["DRAFT", "CANCELLED"].includes(invoice.status)) {
+    // amountPaid fell back to 0 — e.g. the payment(s) that made this
+    // invoice PAID/PARTIALLY_PAID were refunded or deleted. Without this,
+    // the invoice stayed permanently "PAID" with balanceDue > 0, which also
+    // made recalculateOutstanding() below wrongly exclude it (PAID invoices
+    // are assumed to be settled).
+    invoice.status = "PENDING";
   }
 
   await invoice.save();
+
+  // Every payment mutation (create/update/status-change/delete) funnels
+  // through here, so this is the single choke point that keeps
+  // Customer.outstanding in sync with real invoice balances.
+  await customerRepository.recalculateOutstanding(
+    invoice.customer,
+    companyId
+  );
 
   return invoice;
 };
@@ -137,6 +157,16 @@ const createPayment = async (
       companyId
     );
   }
+
+  const customerDoc = await Customer.findById(customer);
+
+  await notificationService.notify({
+    companyId,
+    type: "PAYMENT_RECEIVED",
+    title: "Payment received",
+    message: `₹${Number(amount).toLocaleString("en-IN")} · ${customerDoc?.customerName ?? "Customer"}`,
+    relatedId: payment._id,
+  });
 
   return payment;
 };

@@ -245,6 +245,52 @@ const updateGSTReconciliationController =
   });
 
 
+// ==========================================
+// RECORD STATS
+// ==========================================
+
+const getGSTReconciliationRecordStatsController =
+  asyncHandler(async (req, res) => {
+
+    const result =
+      await service.getRecordStats(
+        req.user,
+        { period: req.query.period }
+      );
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        result,
+        "GST reconciliation record statistics fetched successfully."
+      )
+    );
+  });
+
+
+// ==========================================
+// RE-RUN MATCH
+// ==========================================
+
+const rerunGSTReconciliationMatchController =
+  asyncHandler(async (req, res) => {
+
+    const result =
+      await service.rerunMatch(
+        req.user,
+        { period: req.body?.period }
+      );
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        result,
+        "Reconciliation match re-run successfully."
+      )
+    );
+  });
+
+
 export {
   getGSTReconciliationTransactionsController,
   getGSTReconciliationStatsController,
@@ -255,4 +301,6 @@ export {
   getGSTReconciliationsController,
   getGSTReconciliationByIdController,
   updateGSTReconciliationController,
+  getGSTReconciliationRecordStatsController,
+  rerunGSTReconciliationMatchController,
 };

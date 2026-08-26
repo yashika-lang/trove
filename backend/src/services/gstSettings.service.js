@@ -6,6 +6,8 @@ import {
   deleteGSTSettings,
 } from "../repositories/gstSettings.repository.js";
 
+import { createGSTAuditLog } from "../repositories/gstAuditLog.repository.js";
+
 class GSTSettingsService {
   // ==========================================
   // GET GST SETTINGS
@@ -171,47 +173,63 @@ class GSTSettingsService {
     // SAVE
     // ----------------------------------------
 
-    return await updateGSTSettings(
-      user.company,
-      {
-        legalName:
-          legalName.trim(),
+    const updated =
+      await updateGSTSettings(
+        user.company,
+        {
+          legalName:
+            legalName.trim(),
 
-        gstin:
-          normalizedGSTIN,
+          gstin:
+            normalizedGSTIN,
 
-        stateCode:
-          stateCode.trim(),
+          stateCode:
+            stateCode.trim(),
 
-        state:
-          state.trim(),
+          state:
+            state.trim(),
 
-        registrationType,
+          registrationType,
 
-        filingFrequency,
+          filingFrequency,
 
-        compositionScheme:
-          Boolean(compositionScheme),
+          compositionScheme:
+            Boolean(compositionScheme),
 
-        eInvoicing:
-          Boolean(eInvoicing),
+          eInvoicing:
+            Boolean(eInvoicing),
 
-        reverseCharge:
-          Boolean(reverseCharge),
+          reverseCharge:
+            Boolean(reverseCharge),
 
-        autoReconcile2B:
-          Boolean(autoReconcile2B),
+          autoReconcile2B:
+            Boolean(autoReconcile2B),
 
-        eInvoiceThreshold:
-          invoiceThreshold,
+          eInvoiceThreshold:
+            invoiceThreshold,
 
-        eWayBillThreshold:
-          ewayThreshold,
+          eWayBillThreshold:
+            ewayThreshold,
 
-        updatedBy:
-          user._id,
-      }
-    );
+          updatedBy:
+            user._id,
+        }
+      );
+
+    try {
+      await createGSTAuditLog({
+        action: "GST_SETTINGS_UPDATED",
+        description: `GST settings updated by ${user.fullName || "user"}`,
+        entityType: "GSTSettings",
+        entityId: updated._id,
+        performedBy: user._id,
+        company: user.company,
+      });
+    } catch {
+      // Never let audit logging block the save.
+    }
+
+    return updated;
   }
 
   // ==========================================

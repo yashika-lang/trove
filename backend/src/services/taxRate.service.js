@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import ApiError from "../exceptions/ApiError.js";
 
 import TaxRateRepository from "../repositories/taxRate.repository.js";
+import { createGSTAuditLog } from "../repositories/gstAuditLog.repository.js";
 
 class TaxRateService {
   constructor() {
@@ -83,18 +84,34 @@ class TaxRateService {
       );
     }
 
-    return await this.repository.create({
-      rate: taxRate,
-      cgst: cgstRate,
-      sgst: sgstRate,
-      igst: igstRate,
-      label: label?.trim() || `${taxRate}%`,
-      description:
-        description?.trim() || "",
-      active: true,
-      company: user.company,
-      createdBy: user._id,
-    });
+    const created =
+      await this.repository.create({
+        rate: taxRate,
+        cgst: cgstRate,
+        sgst: sgstRate,
+        igst: igstRate,
+        label: label?.trim() || `${taxRate}%`,
+        description:
+          description?.trim() || "",
+        active: true,
+        company: user.company,
+        createdBy: user._id,
+      });
+
+    try {
+      await createGSTAuditLog({
+        action: "GST_RATE_CHANGED",
+        description: `Tax rate ${taxRate}% created`,
+        entityType: "TaxRate",
+        entityId: created._id,
+        performedBy: user._id,
+        company: user.company,
+      });
+    } catch {
+      // Never let audit logging block creation.
+    }
+
+    return created;
   }
 
   // ==========================================
@@ -282,11 +299,27 @@ class TaxRateService {
         Boolean(data.active);
     }
 
-    return await this.repository.update(
-      rateId,
-      user.company,
-      updateData
-    );
+    const updated =
+      await this.repository.update(
+        rateId,
+        user.company,
+        updateData
+      );
+
+    try {
+      await createGSTAuditLog({
+        action: "GST_RATE_CHANGED",
+        description: `Tax rate ${updated.rate}% updated`,
+        entityType: "TaxRate",
+        entityId: updated._id,
+        performedBy: user._id,
+        company: user.company,
+      });
+    } catch {
+      // Never let audit logging block the update.
+    }
+
+    return updated;
   }
 
   // ==========================================

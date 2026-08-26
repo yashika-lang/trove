@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import ApiError from "../exceptions/ApiError.js";
 
 import HsnSacRepository from "../repositories/hsnSac.repository.js";
+import { createGSTAuditLog } from "../repositories/gstAuditLog.repository.js";
 
 class HsnSacService {
   constructor() {
@@ -77,17 +78,33 @@ class HsnSacService {
       );
     }
 
-    return await this.repository.create({
-      code: code.trim(),
-      type,
-      description:
-        description.trim(),
-      uqc: uqc?.trim() || "",
-      gstRate: rate,
-      active: true,
-      company: user.company,
-      createdBy: user._id,
-    });
+    const created =
+      await this.repository.create({
+        code: code.trim(),
+        type,
+        description:
+          description.trim(),
+        uqc: uqc?.trim() || "",
+        gstRate: rate,
+        active: true,
+        company: user.company,
+        createdBy: user._id,
+      });
+
+    try {
+      await createGSTAuditLog({
+        action: "HSN_ADDED",
+        description: `${type} ${code.trim()} added (${description.trim()}, ${rate}%)`,
+        entityType: "HsnSac",
+        entityId: created._id,
+        performedBy: user._id,
+        company: user.company,
+      });
+    } catch {
+      // Never let audit logging block creation.
+    }
+
+    return created;
   }
 
   // ==========================================

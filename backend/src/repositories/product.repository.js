@@ -1,4 +1,5 @@
 import Product from "../models/product.model.js";
+import { LOW_STOCK_THRESHOLD } from "../constants/stock.js";
 
 class ProductRepository {
 
@@ -106,7 +107,7 @@ class ProductRepository {
     });
   }
 
-  async getProductStats(companyId, lowStockThreshold = 10) {
+  async getProductStats(companyId, lowStockThreshold = LOW_STOCK_THRESHOLD) {
     const stats = await Product.aggregate([
       {
         $match: {

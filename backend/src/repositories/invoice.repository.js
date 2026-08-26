@@ -1,4 +1,6 @@
 import Invoice from "../models/invoice.model.js";
+import Customer from "../models/customer.model.js";
+import Quotation from "../models/quotation.model.js";
 
 class InvoiceRepository {
   // CREATE INVOICE
@@ -30,13 +32,24 @@ class InvoiceRepository {
     }
 
     if (search) {
+      // Mirrors the same customer-name + document-number lookup already
+      // used in quotation.repository.js findQuotations.
+      const [matchingCustomers, matchingQuotations] = await Promise.all([
+        Customer.find({
+          company: companyId,
+          customerName: { $regex: search, $options: "i" },
+        }).select("_id"),
+
+        Quotation.find({
+          company: companyId,
+          quotationNumber: { $regex: search, $options: "i" },
+        }).select("_id"),
+      ]);
+
       filter.$or = [
-        {
-          invoiceNumber: {
-            $regex: search,
-            $options: "i",
-          },
-        },
+        { invoiceNumber: { $regex: search, $options: "i" } },
+        { customer: { $in: matchingCustomers.map((c) => c._id) } },
+        { quotation: { $in: matchingQuotations.map((q) => q._id) } },
       ];
     }
 
@@ -129,8 +142,18 @@ class InvoiceRepository {
             },
           },
 
+          // Excludes CANCELLED so this agrees with the dashboard's and the
+          // customer's own outstanding figures (dashboard.repository.js /
+          // customer.repository.js recalculateOutstanding), which both
+          // already exclude cancelled invoices from "money owed."
           outstanding: {
-            $sum: "$balanceDue",
+            $sum: {
+              $cond: [
+                { $eq: ["$status", "CANCELLED"] },
+                0,
+                "$balanceDue",
+              ],
+            },
           },
 
           overdue: {

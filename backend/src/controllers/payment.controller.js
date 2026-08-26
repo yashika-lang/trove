@@ -1,5 +1,6 @@
 import asyncHandler from "../exceptions/asyncHandler.js";
 import ApiResponse from "../exceptions/ApiResponse.js";
+import ApiError from "../exceptions/ApiError.js";
 import {
   createPayment as createPaymentService,
   getAllPayments as getAllPaymentsService,
@@ -9,6 +10,8 @@ import {
   deletePayment as deletePaymentService,
   getPaymentStats as getPaymentStatsService,
 } from "../services/payment.service.js";
+import { buildPaymentReceiptPdf } from "../utils/documentPdf.js";
+import { sendMail } from "../utils/mailer.js";
 
 // CREATE PAYMENT
 const createPayment = asyncHandler(async (req, res) => {
@@ -140,6 +143,46 @@ const getPaymentStats = asyncHandler(async (req, res) => {
   );
 });
 
+// DOWNLOAD PAYMENT RECEIPT PDF
+const downloadPaymentReceiptPdf = asyncHandler(async (req, res) => {
+  const payment = await getPaymentByIdService(req.params.paymentId, req.user);
+
+  const pdfBuffer = await buildPaymentReceiptPdf(payment);
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${payment.paymentNumber}.pdf"`
+  );
+  return res.status(200).send(pdfBuffer);
+});
+
+// EMAIL PAYMENT RECEIPT
+const emailPaymentReceipt = asyncHandler(async (req, res) => {
+  const payment = await getPaymentByIdService(req.params.paymentId, req.user);
+
+  const to = req.body?.to || payment.customer?.email;
+
+  if (!to) {
+    throw new ApiError(400, "No recipient email available.");
+  }
+
+  const pdfBuffer = await buildPaymentReceiptPdf(payment);
+
+  await sendMail({
+    to,
+    subject: `Payment Receipt ${payment.paymentNumber}`,
+    html: `<p>Hi ${payment.customer?.customerName ?? ""},</p><p>Please find attached your payment receipt for ₹${payment.amount.toLocaleString("en-IN")}.</p>`,
+    attachments: [
+      { filename: `${payment.paymentNumber}.pdf`, content: pdfBuffer },
+    ],
+  });
+
+  return res.status(200).json(
+    new ApiResponse(200, { to }, "Receipt emailed successfully.")
+  );
+});
+
 export {
   createPayment,
   getAllPayments,
@@ -148,4 +191,6 @@ export {
   updatePaymentStatus,
   deletePayment,
   getPaymentStats,
+  downloadPaymentReceiptPdf,
+  emailPaymentReceipt,
 };

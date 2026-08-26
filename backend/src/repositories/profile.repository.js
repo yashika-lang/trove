@@ -17,6 +17,26 @@ const getProfileRepository = async (userId) => {
 };
 
 // ======================================================
+// UPDATE BASIC PROFILE
+// ======================================================
+// Deliberately does not accept role/email/company — a user can never
+// change their own role or move companies through this endpoint.
+
+const updateProfileRepository = async (
+  userId,
+  updateData
+) => {
+  return await User.findByIdAndUpdate(
+    userId,
+    { $set: updateData },
+    { new: true, runValidators: true }
+  )
+    .select("-password -refreshToken")
+    .populate("company", "companyName")
+    .lean();
+};
+
+// ======================================================
 // SALES PROFILE METRICS
 // ======================================================
 
@@ -587,6 +607,7 @@ const getRecentActivityRepository = async (
 
 export {
   getProfileRepository,
+  updateProfileRepository,
   getSalesMetricsRepository,
   getQuotationConversionRepository,
   getRecentCustomersRepository,

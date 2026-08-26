@@ -1,6 +1,9 @@
 import asyncHandler from "../exceptions/asyncHandler.js";
 import ApiResponse from "../exceptions/ApiResponse.js";
+import ApiError from "../exceptions/ApiError.js";
 import QuotationService from "../services/quotation.service.js";
+import { buildDocumentPdf } from "../utils/documentPdf.js";
+import { sendMail } from "../utils/mailer.js";
 
 const quotationService = new QuotationService();
 
@@ -141,6 +144,52 @@ const getQuotationStats = asyncHandler(async (req, res) => {
   );
 });
 
+// DOWNLOAD QUOTATION PDF
+const downloadQuotationPdf = asyncHandler(async (req, res) => {
+  const quotation = await quotationService.getQuotationById(
+    req.params.quotationId,
+    req.user.company
+  );
+
+  const pdfBuffer = await buildDocumentPdf({ kind: "quotation", doc: quotation });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${quotation.quotationNumber}.pdf"`
+  );
+  return res.status(200).send(pdfBuffer);
+});
+
+// EMAIL QUOTATION
+const emailQuotation = asyncHandler(async (req, res) => {
+  const quotation = await quotationService.getQuotationById(
+    req.params.quotationId,
+    req.user.company
+  );
+
+  const to = req.body?.to || quotation.customer?.email;
+
+  if (!to) {
+    throw new ApiError(400, "No recipient email available.");
+  }
+
+  const pdfBuffer = await buildDocumentPdf({ kind: "quotation", doc: quotation });
+
+  await sendMail({
+    to,
+    subject: `Quotation ${quotation.quotationNumber}`,
+    html: `<p>Hi ${quotation.customer?.customerName ?? ""},</p><p>Please find attached quotation ${quotation.quotationNumber} for ₹${quotation.total.toLocaleString("en-IN")}.</p>`,
+    attachments: [
+      { filename: `${quotation.quotationNumber}.pdf`, content: pdfBuffer },
+    ],
+  });
+
+  return res.status(200).json(
+    new ApiResponse(200, { to }, "Quotation emailed successfully.")
+  );
+});
+
 export {
   createQuotation,
   getAllQuotations,
@@ -149,4 +198,6 @@ export {
   deleteQuotation,
   updateQuotationStatus,
   getQuotationStats,
+  downloadQuotationPdf,
+  emailQuotation,
 };

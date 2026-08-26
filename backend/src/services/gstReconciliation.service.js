@@ -10,7 +10,12 @@ import {
   getGSTReconciliationById,
   getGSTReconciliations,
   updateGSTReconciliation,
+  getReconciliationRecordStats,
 } from "../repositories/gstReconciliation.repository.js";
+
+import GSTTransactionModel from "../models/gstTransaction.model.js";
+import { createGSTAuditLog } from "../repositories/gstAuditLog.repository.js";
+import { notificationService } from "./notification.service.js";
 
 
 class GSTReconciliationService {
@@ -293,7 +298,7 @@ class GSTReconciliationService {
     // CREATE RECONCILIATION
     // ----------------------------------------
 
-    return await createGSTReconciliation({
+    const created = await createGSTReconciliation({
 
       documentNumber:
         documentNumber.trim(),
@@ -337,6 +342,18 @@ class GSTReconciliationService {
       createdBy:
         user._id,
     });
+
+    if (status !== "MATCHED") {
+      await notificationService.notify({
+        companyId: user.company,
+        type: "RECONCILIATION_MISMATCH",
+        title: `Reconciliation ${status.replace(/_/g, " ").toLowerCase()}: ${created.documentNumber}`,
+        message: `${created.supplierName} · ${created.period} · ₹${Math.abs(difference).toLocaleString("en-IN")} difference`,
+        relatedId: created._id,
+      });
+    }
+
+    return created;
   }
 
 
@@ -419,6 +436,152 @@ class GSTReconciliationService {
       user.company,
       data
     );
+  }
+
+
+  // ==========================================
+  // RECORD STATS
+  // ==========================================
+  //
+  // Matches the reference UI's cards exactly: Matched / Value mismatch /
+  // Missing in books / Missing in 2B, counted from real
+  // GSTReconciliation records.
+  // ==========================================
+
+  async getRecordStats(
+    user,
+    filters = {}
+  ) {
+
+    return await getReconciliationRecordStats(
+      user.company,
+      filters
+    );
+  }
+
+
+  // ==========================================
+  // RE-RUN MATCH
+  // ==========================================
+  //
+  // Refreshes each reconciliation record's "Books" side from the real,
+  // current inward GST transaction it corresponds to (matched by
+  // documentNumber) and recomputes status/difference — useful when a
+  // transaction was edited or added after the reconciliation record was
+  // first created. There is no external GSTN portal integration in this
+  // app, so the "Portal 2B" side is never invented here; it stays
+  // whatever was last entered against that record.
+  // ==========================================
+
+  async rerunMatch(
+    user,
+    filters = {}
+  ) {
+
+    const records =
+      await getGSTReconciliations(
+        user.company,
+        filters
+      );
+
+    let updatedCount = 0;
+
+    for (const record of records) {
+
+      const liveTransaction =
+        await GSTTransactionModel.findOne({
+          company: user.company,
+          type: "INWARD",
+          documentNumber:
+            record.documentNumber,
+        }).lean();
+
+      const booksTaxableAmount =
+        liveTransaction?.taxableAmount || 0;
+
+      const booksTax =
+        liveTransaction?.totalTax || 0;
+
+      const portalTaxableAmount =
+        Number(record.portalTaxableAmount || 0);
+
+      const portalTax =
+        Number(record.portalTax || 0);
+
+      const difference =
+        booksTax - portalTax;
+
+      let status = "MATCHED";
+
+      if (
+        booksTaxableAmount === 0 &&
+        portalTaxableAmount > 0
+      ) {
+        status = "MISSING_IN_BOOKS";
+      } else if (
+        portalTaxableAmount === 0 &&
+        booksTaxableAmount > 0
+      ) {
+        status = "MISSING_IN_2B";
+      } else if (
+        Math.abs(difference) > 0.01
+      ) {
+        status = "VALUE_MISMATCH";
+      }
+
+      const changed =
+        record.booksTaxableAmount !== booksTaxableAmount ||
+        record.booksTax !== booksTax ||
+        record.status !== status;
+
+      if (changed) {
+
+        await updateGSTReconciliation(
+          record._id,
+          user.company,
+          {
+            booksTaxableAmount,
+            booksTax,
+            difference,
+            status,
+            matchedAt:
+              status === "MATCHED"
+                ? new Date()
+                : null,
+          }
+        );
+
+        updatedCount += 1;
+
+        if (status !== "MATCHED" && record.status !== status) {
+          await notificationService.notify({
+            companyId: user.company,
+            type: "RECONCILIATION_MISMATCH",
+            title: `Reconciliation ${status.replace(/_/g, " ").toLowerCase()}: ${record.documentNumber}`,
+            message: `${record.supplierName} · ${record.period} · ₹${Math.abs(difference).toLocaleString("en-IN")} difference`,
+            relatedId: record._id,
+          });
+        }
+      }
+    }
+
+    try {
+      await createGSTAuditLog({
+        action: "RECONCILIATION_RUN",
+        description: `Re-run match: ${records.length} record(s) checked, ${updatedCount} updated${filters.period ? ` for ${filters.period}` : ""}`,
+        entityType: "GSTReconciliation",
+        metadata: { checked: records.length, updated: updatedCount, period: filters.period || null },
+        performedBy: user._id,
+        company: user.company,
+      });
+    } catch {
+      // Never let audit logging block the re-run.
+    }
+
+    return {
+      checked: records.length,
+      updated: updatedCount,
+    };
   }
 
 }

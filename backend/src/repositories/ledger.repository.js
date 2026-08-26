@@ -122,6 +122,14 @@ const getCustomerLedgerSourceData = async (
   const paymentQuery = {
     company: companyId,
     customer: customerId,
+
+    // Only PAID / PARTIALLY_PAID payments are real cash received — a
+    // FAILED, PENDING, or REFUNDED payment must not appear as a credit
+    // here, matching the same status filter used for Customer.outstanding
+    // and the Payments page "collected" stat.
+    status: {
+      $in: ["PAID", "PARTIALLY_PAID"],
+    },
   };
 
 
@@ -235,6 +243,11 @@ const getCompanyLedgerSourceData = async (
 
   const paymentQuery = {
     company: companyId,
+
+    // See getCustomerLedgerSourceData — only real cash received counts.
+    status: {
+      $in: ["PAID", "PARTIALLY_PAID"],
+    },
   };
 
 
@@ -403,6 +416,10 @@ const getCustomerOpeningData = async (
     Payment.find({
       company: companyId,
       customer: customerId,
+
+      status: {
+        $in: ["PAID", "PARTIALLY_PAID"],
+      },
 
       paymentDate: {
         $lt: date,
