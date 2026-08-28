@@ -257,7 +257,7 @@ export default function QuotationRowMenu({ quotation, onChanged, onDuplicate }) 
           <p className="text-sm text-gray-400">Loading…</p>
         ) : (
           <div className="space-y-4 text-sm">
-            <div className="grid grid-cols-2 gap-3 text-gray-500">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-gray-500">
               <div>
                 <p className="text-xs uppercase text-gray-400">Customer</p>
                 <p className="text-ink">{detail.customer?.customerName}</p>
@@ -268,7 +268,7 @@ export default function QuotationRowMenu({ quotation, onChanged, onDuplicate }) 
               </div>
             </div>
 
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto"><table className="w-full min-w-[420px] text-xs">
               <thead>
                 <tr className="border-b border-gray-100 text-left text-gray-400">
                   <th className="py-1.5 font-medium">Product</th>
@@ -288,6 +288,7 @@ export default function QuotationRowMenu({ quotation, onChanged, onDuplicate }) 
                 ))}
               </tbody>
             </table>
+            </div>
 
             <div className="space-y-1 border-t border-gray-100 pt-3">
               <div className="flex justify-between text-gray-500">
@@ -322,8 +323,8 @@ export default function QuotationRowMenu({ quotation, onChanged, onDuplicate }) 
       </SideDrawer>
 
       {converting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-          <div className="w-80 rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-2xl">
             <h3 className="text-sm font-semibold text-ink">Convert to Invoice</h3>
             <p className="mt-1 text-xs text-gray-500">
               Creates an invoice from {quotation.quotationNumber} using its existing items and GST.

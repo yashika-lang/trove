@@ -99,8 +99,8 @@ export default function ReportsPage() {
   const cards = data ? activeReport.getCards(data) : [];
 
   return (
-    <div className="flex h-full gap-6">
-      <div className="w-full max-w-xs shrink-0 space-y-4">
+    <div className="flex h-full flex-col gap-6 lg:flex-row">
+      <div className="w-full space-y-4 lg:max-w-xs lg:shrink-0">
         <div>
           <h1 className="text-2xl font-semibold text-ink">Reports</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -181,7 +181,7 @@ export default function ReportsPage() {
             <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm">
               <Search size={14} className="text-gray-400" />
               <input
-                className="w-56 outline-none placeholder:text-gray-400"
+                className="w-full sm:w-56 outline-none placeholder:text-gray-400"
                 placeholder="Search rows…"
                 value={rowSearch}
                 onChange={(e) => setRowSearch(e.target.value)}

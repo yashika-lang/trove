@@ -94,8 +94,8 @@ export default function ProductRowMenu({ product, onView, onEdit, onDuplicate, o
       )}
 
       {confirmingDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-          <div className="w-80 rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-2xl">
             <h3 className="text-sm font-semibold text-ink">Delete {product.productName}?</h3>
             <p className="mt-1 text-xs text-gray-500">This cannot be undone.</p>
             {error && <p className="mt-2 text-xs text-red-500">{error}</p>}

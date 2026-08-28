@@ -175,7 +175,7 @@ export default function InvoiceRowMenu({ invoice }) {
           <p className="text-sm text-gray-400">Loading…</p>
         ) : (
           <div className="space-y-4 text-sm">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-gray-100 px-3 py-2">
                 <p className="text-xs text-gray-400">Invoice Date</p>
                 <p className="text-ink">{formatDate(detail.invoiceDate)}</p>
@@ -188,7 +188,7 @@ export default function InvoiceRowMenu({ invoice }) {
 
             <div>
               <p className="mb-1.5 text-xs font-medium uppercase text-gray-400">Line Items</p>
-              <table className="w-full text-xs">
+              <div className="overflow-x-auto"><table className="w-full min-w-[420px] text-xs">
                 <thead>
                   <tr className="border-b border-gray-100 text-left text-gray-400">
                     <th className="py-1.5 font-medium">Item</th>
@@ -213,6 +213,7 @@ export default function InvoiceRowMenu({ invoice }) {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
 
             <div className="space-y-1 border-t border-gray-100 pt-3">

@@ -58,7 +58,7 @@ export default function ImportCsvModal({ open, onClose, onImported, accounts, de
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
         <div className="flex items-start justify-between">
           <div>

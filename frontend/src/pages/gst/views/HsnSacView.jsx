@@ -125,7 +125,7 @@ export default function HsnSacView() {
       <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
         <Search size={14} className="text-gray-400" />
         <input
-          className="w-72 outline-none placeholder:text-gray-400"
+          className="w-full sm:w-72 outline-none placeholder:text-gray-400"
           placeholder="Search code or description…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}

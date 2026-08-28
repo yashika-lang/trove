@@ -114,7 +114,7 @@ export default function AddBankDrawer({ open, onClose, onCreated }) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">IFSC Code</label>
             <input
@@ -140,7 +140,7 @@ export default function AddBankDrawer({ open, onClose, onCreated }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">Branch Name</label>
             <input

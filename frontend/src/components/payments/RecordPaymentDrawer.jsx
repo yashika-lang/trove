@@ -143,7 +143,7 @@ export default function RecordPaymentDrawer({ open, onClose, onCreated, prefillC
           </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">Amount</label>
             <input
@@ -167,7 +167,7 @@ export default function RecordPaymentDrawer({ open, onClose, onCreated, prefillC
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">Payment Mode</label>
             <select
@@ -198,7 +198,7 @@ export default function RecordPaymentDrawer({ open, onClose, onCreated, prefillC
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">UTR</label>
             <input

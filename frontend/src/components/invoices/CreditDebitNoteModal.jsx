@@ -81,8 +81,8 @@ export default function CreditDebitNoteModal({ open, onClose, invoice, type }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-      <div className="w-[28rem] rounded-2xl bg-white p-5 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
         {success ? (
           <div className="text-center">
             <p className="text-sm text-gray-500">{label} issued</p>
@@ -126,7 +126,7 @@ export default function CreditDebitNoteModal({ open, onClose, invoice, type }) {
                 {items.map((item, index) => (
                   <div key={index} className="grid grid-cols-12 items-center gap-2">
                     <select
-                      className="col-span-7 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+                      className="col-span-12 sm:col-span-7 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
                       value={item.product}
                       onChange={(e) => onSelectProduct(index, e.target.value)}
                     >
@@ -140,14 +140,14 @@ export default function CreditDebitNoteModal({ open, onClose, invoice, type }) {
                     <input
                       type="number"
                       min={1}
-                      className="col-span-3 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+                      className="col-span-8 sm:col-span-3 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
                       value={item.quantity}
                       onChange={(e) => updateQty(index, e.target.value)}
                     />
                     <button
                       type="button"
                       onClick={() => removeItem(index)}
-                      className="col-span-2 flex justify-center text-gray-300 hover:text-red-500"
+                      className="col-span-4 sm:col-span-2 flex justify-center text-gray-300 hover:text-red-500"
                     >
                       <Trash2 size={16} />
                     </button>

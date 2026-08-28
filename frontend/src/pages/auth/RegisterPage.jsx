@@ -174,7 +174,7 @@ export default function RegisterPage() {
               hint={PASSWORD_HINT}
             />
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/*
                 Only India is currently supported by the backend's phone
                 validation, so Country is fixed rather than a live dropdown —

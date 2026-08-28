@@ -56,8 +56,8 @@ export default function SettingsPage() {
   }, []);
 
   return (
-    <div className="flex h-full gap-6">
-      <div className="w-full max-w-[260px] shrink-0 space-y-1 overflow-y-auto">
+    <div className="flex h-full flex-col gap-6 lg:flex-row">
+      <div className="w-full space-y-1 overflow-y-auto lg:max-w-[260px] lg:shrink-0">
         {NAV.map((item) => (
           <NavLink
             key={item.to}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Calendar, Moon, Sun, Bell, FileText, Package, Users, Receipt, User, LogOut } from "lucide-react";
+import { Search, Calendar, Moon, Sun, Bell, FileText, Package, Users, Receipt, User, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { globalSearchApi } from "../../api/search.api";
@@ -40,7 +40,7 @@ const formatRelativeTime = (dateStr) => {
   return `${Math.round(hrs / 24)} days ago`;
 };
 
-export default function Topbar() {
+export default function Topbar({ onOpenSidebar = () => {} }) {
   const { user, logout } = useAuth();
   const { effectiveTheme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -51,7 +51,9 @@ export default function Topbar() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchRef = useRef(null);
+  const mobileSearchRef = useRef(null);
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -116,70 +118,103 @@ export default function Topbar() {
     }
   };
 
+  const goToResult = (r) => {
+    setSearchOpen(false);
+    setMobileSearchOpen(false);
+    setQuery("");
+    navigate(RESULT_ROUTE[r.type]());
+  };
+
+  const searchResults = (
+    <>
+      {results.length === 0 && (
+        <p className="px-3 py-3 text-sm text-gray-400">No results for "{query}".</p>
+      )}
+      {results.map((r) => {
+        const Icon = RESULT_ICON[r.type] ?? FileText;
+        return (
+          <button
+            key={`${r.type}-${r.id}`}
+            type="button"
+            onClick={() => goToResult(r)}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-gray-50"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+              <Icon size={14} />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-ink">{r.label}</span>
+              <span className="block truncate text-xs text-gray-400">{r.sublabel}</span>
+            </span>
+          </button>
+        );
+      })}
+    </>
+  );
+
   return (
-    <header className="flex h-16 shrink-0 items-center gap-4 border-b border-gray-100 bg-white px-6">
-      <div className="relative flex-1" ref={searchRef}>
+    <header className="relative flex h-16 shrink-0 items-center gap-2 border-b border-gray-100 bg-white px-3 sm:gap-4 sm:px-6">
+      <button
+        type="button"
+        onClick={onOpenSidebar}
+        className="shrink-0 text-gray-500 hover:text-ink md:hidden"
+        aria-label="Open menu"
+      >
+        <Menu size={22} />
+      </button>
+
+      {/* Search — full bar on tablet/desktop */}
+      <div className="relative hidden min-w-0 flex-1 sm:block" ref={searchRef}>
         <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm">
-          <Search size={16} className="text-gray-400" />
+          <Search size={16} className="shrink-0 text-gray-400" />
           <input
-            className="w-full outline-none placeholder:text-gray-400"
+            className="w-full min-w-0 outline-none placeholder:text-gray-400"
             placeholder="Search products, customers, invoices…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => query && setSearchOpen(true)}
           />
-          <kbd className="rounded border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-400">⌘K</kbd>
+          <kbd className="hidden shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-400 lg:inline-block">
+            ⌘K
+          </kbd>
         </div>
 
         {searchOpen && (
           <div className="absolute left-0 right-0 z-20 mt-1 max-h-80 overflow-y-auto rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
-            {results.length === 0 && (
-              <p className="px-3 py-3 text-sm text-gray-400">No results for "{query}".</p>
-            )}
-            {results.map((r) => {
-              const Icon = RESULT_ICON[r.type] ?? FileText;
-              return (
-                <button
-                  key={`${r.type}-${r.id}`}
-                  type="button"
-                  onClick={() => {
-                    setSearchOpen(false);
-                    setQuery("");
-                    navigate(RESULT_ROUTE[r.type]());
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-gray-50"
-                >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                    <Icon size={14} />
-                  </span>
-                  <span>
-                    <span className="block text-ink">{r.label}</span>
-                    <span className="block text-xs text-gray-400">{r.sublabel}</span>
-                  </span>
-                </button>
-              );
-            })}
+            {searchResults}
           </div>
         )}
       </div>
 
-      <div className="hidden items-center gap-1.5 text-sm text-gray-500 md:flex">
+      {/* Search — icon-only trigger on mobile, expands to a full-width overlay row */}
+      <button
+        type="button"
+        onClick={() => setMobileSearchOpen(true)}
+        className="shrink-0 text-gray-400 hover:text-ink sm:hidden"
+        aria-label="Search"
+      >
+        <Search size={19} />
+      </button>
+
+      <div className="ml-auto hidden shrink-0 items-center gap-1.5 text-sm text-gray-500 lg:flex">
         <Calendar size={15} />
         {today}
       </div>
 
-      <div className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-ink">{user?.role}</div>
+      <div className="hidden shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-ink sm:block">
+        {user?.role}
+      </div>
 
       <button
         type="button"
         onClick={toggleTheme}
-        className="text-gray-400 hover:text-ink"
+        className="shrink-0 text-gray-400 hover:text-ink"
         title={effectiveTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       >
         {effectiveTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
       </button>
 
-      <div className="relative" ref={notifRef}>
+      <div className="relative shrink-0" ref={notifRef}>
         <button
           type="button"
           data-testid="notification-bell"
@@ -193,7 +228,7 @@ export default function Topbar() {
         </button>
 
         {notifOpen && (
-          <div className="absolute right-0 z-20 mt-2 w-80 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+          <div className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
             <div className="flex items-center justify-between px-3 py-2">
               <p className="text-sm font-semibold text-ink">Notifications</p>
               {unreadCount > 0 && (
@@ -220,7 +255,7 @@ export default function Topbar() {
                   }`}
                 >
                   <span className="flex items-center gap-1.5">
-                    {!n.read && <span className="h-1.5 w-1.5 rounded-full bg-brand-600" />}
+                    {!n.read && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-600" />}
                     <span className="text-sm font-medium text-ink">{n.title}</span>
                   </span>
                   <span className="mt-0.5 block text-xs text-gray-400">{n.message}</span>
@@ -244,7 +279,7 @@ export default function Topbar() {
         )}
       </div>
 
-      <div className="relative" ref={profileRef}>
+      <div className="relative shrink-0" ref={profileRef}>
         <button
           type="button"
           data-testid="profile-avatar"
@@ -255,9 +290,9 @@ export default function Topbar() {
         </button>
 
         {profileOpen && (
-          <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+          <div className="absolute right-0 z-20 mt-2 w-56 max-w-[calc(100vw-1.5rem)] rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
             <div className="border-b border-gray-50 px-3.5 py-3">
-              <p className="text-sm font-semibold text-ink">{user?.fullName}</p>
+              <p className="truncate text-sm font-semibold text-ink">{user?.fullName}</p>
               <p className="text-xs text-gray-400">{user?.role}</p>
             </div>
             <button
@@ -284,6 +319,41 @@ export default function Topbar() {
           </div>
         )}
       </div>
+
+      {/* Mobile search overlay — replaces the topbar row while active */}
+      {mobileSearchOpen && (
+        <div className="absolute inset-x-0 top-0 z-30 flex h-16 items-center gap-2 border-b border-gray-100 bg-white px-3 sm:hidden">
+          <div className="relative min-w-0 flex-1" ref={mobileSearchRef}>
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm">
+              <Search size={16} className="shrink-0 text-gray-400" />
+              <input
+                autoFocus
+                className="w-full min-w-0 outline-none placeholder:text-gray-400"
+                placeholder="Search…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+
+            {query && (
+              <div className="absolute left-0 right-0 z-20 mt-1 max-h-[60vh] overflow-y-auto rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+                {searchResults}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setMobileSearchOpen(false);
+              setQuery("");
+            }}
+            className="shrink-0 text-gray-400 hover:text-ink"
+            aria-label="Close search"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      )}
     </header>
   );
 }

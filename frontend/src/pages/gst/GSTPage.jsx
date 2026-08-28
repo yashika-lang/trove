@@ -57,8 +57,8 @@ const NAV = [
 
 export default function GSTPage() {
   return (
-    <div className="flex h-full gap-6">
-      <div className="w-full max-w-[220px] shrink-0 space-y-5">
+    <div className="flex h-full flex-col gap-6 lg:flex-row">
+      <div className="w-full space-y-5 lg:max-w-[220px] lg:shrink-0">
         <div>
           <h1 className="text-2xl font-semibold text-ink">GST</h1>
           <p className="mt-1 text-sm text-gray-500">Compliance, filing and tax master data.</p>

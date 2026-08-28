@@ -170,7 +170,7 @@ export default function PaymentRowMenu({ payment, onChanged }) {
               <p className="text-xs uppercase text-gray-400">Received From</p>
               <p className="text-ink">{detail.customer?.customerName}</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <p className="text-xs uppercase text-gray-400">Date</p>
                 <p className="text-ink">{formatDate(detail.paymentDate)}</p>
@@ -180,7 +180,7 @@ export default function PaymentRowMenu({ payment, onChanged }) {
                 <p className="text-ink">{detail.invoice?.invoiceNumber ?? "On account"}</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <p className="text-xs uppercase text-gray-400">Amount</p>
                 <p className="text-ink">{formatINR(detail.amount)}</p>
@@ -191,7 +191,7 @@ export default function PaymentRowMenu({ payment, onChanged }) {
               </div>
             </div>
             {(detail.utr || detail.referenceNumber) && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {detail.utr && (
                   <div>
                     <p className="text-xs uppercase text-gray-400">UTR</p>
@@ -217,8 +217,8 @@ export default function PaymentRowMenu({ payment, onChanged }) {
       </SideDrawer>
 
       {refunding && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-          <div className="w-80 rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-2xl">
             <h3 className="text-sm font-semibold text-ink">Refund {payment.paymentNumber}?</h3>
             <p className="mt-1 text-xs text-gray-500">
               Marks this payment as REFUNDED and recalculates the linked invoice's balance due.

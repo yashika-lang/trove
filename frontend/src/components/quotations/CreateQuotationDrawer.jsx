@@ -147,7 +147,7 @@ export default function CreateQuotationDrawer({ open, onClose, onCreated, duplic
       }
     >
       <form id="create-quotation-form" onSubmit={handleSubmit} className="space-y-5" noValidate>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="col-span-1">
             <label className="mb-1 block text-xs font-medium text-gray-500">Customer</label>
             <select
@@ -196,7 +196,7 @@ export default function CreateQuotationDrawer({ open, onClose, onCreated, duplic
           </div>
 
           <div className="space-y-2">
-            <div className="grid grid-cols-12 gap-2 px-1 text-[11px] font-medium uppercase text-gray-400">
+            <div className="grid grid-cols-4 gap-2 px-1 text-[11px] font-medium uppercase text-gray-400 sm:grid-cols-12">
               <span className="col-span-4">Product</span>
               <span className="col-span-2">HSN</span>
               <span className="col-span-2">Qty</span>
@@ -206,7 +206,7 @@ export default function CreateQuotationDrawer({ open, onClose, onCreated, duplic
             </div>
 
             {items.map((item, index) => (
-              <div key={index} className="grid grid-cols-12 items-center gap-2">
+              <div key={index} className="grid grid-cols-4 items-center gap-2 sm:grid-cols-12">
                 <select
                   className="col-span-4 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
                   value={item.product}
@@ -275,7 +275,7 @@ export default function CreateQuotationDrawer({ open, onClose, onCreated, duplic
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">Notes</label>
             <textarea

@@ -87,8 +87,8 @@ export default function ProductsPage() {
         <StatCard icon={Ban} label="Out of Stock" value={stats?.outOfStock ?? "—"} />
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="flex flex-1 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-[200px] flex-1 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
           <Search size={16} className="text-gray-400" />
           <input
             className="w-full outline-none placeholder:text-gray-400"

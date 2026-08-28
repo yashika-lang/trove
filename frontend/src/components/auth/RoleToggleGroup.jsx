@@ -4,7 +4,7 @@ export default function RoleToggleGroup({ value, onChange }) {
   return (
     <div>
       <p className="mb-2 text-sm font-medium text-ink">Who are you signing up as?</p>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {ROLES.map((role) => {
           const selected = value === role.value;
           return (
