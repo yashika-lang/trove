@@ -49,12 +49,20 @@ import { notFound } from "./middleware/notFound.middleware.js";
 import globalErrorHandler from "./exceptions/globalErrorHandler.js";
 
 
-const app = express(); // it returns an instance of express application say : get , post put , delete etc 
+const app = express(); // it returns an instance of express application say : get , post put , delete etc
 
 // CORS
+// CLIENT_URL may be a single origin or a comma-separated list (e.g. local
+// dev + the deployed frontend), so both work without swapping the env var
+// between environments.
+const allowedOrigins = (process.env.CLIENT_URL || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use( // middleware to handle cross- origin requests
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: allowedOrigins,
     credentials: true,
     // Without this, cross-origin XHR/fetch responses can't read
     // Content-Disposition (it isn't on the CORS-safelisted header list by

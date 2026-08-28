@@ -62,6 +62,13 @@ await user.save({ // user.save() is used for saving the updated user document to
 const options = { // options for setting cookies in the response
   httpOnly: true,
   secure: env.NODE_ENV === "production",
+  // Frontend (Vercel) and backend (Render) are different registrable
+  // domains, so this cookie is genuinely cross-site — browsers only send
+  // a cross-site cookie on XHR/fetch when it's SameSite=None, and only
+  // accept SameSite=None when Secure is also set. Local dev stays "lax"
+  // since localhost:5173/localhost:8000 count as same-site (same host,
+  // only the port differs) and secure cookies don't work over plain http.
+  sameSite: env.NODE_ENV === "production" ? "none" : "lax",
 };
 
 const loggedInUser = await User.findById(user._id).select( // this query retrieves the user document from the database by its unique identifier (_id) a
@@ -120,7 +127,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 const options = {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: env.NODE_ENV === "production" ? "none" : "lax",
 };
 return res
     .status(200)
@@ -192,7 +199,7 @@ await user.save({
 const options = {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: env.NODE_ENV === "production" ? "none" : "lax",
 };
 return res
     .status(200)
